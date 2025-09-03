@@ -1,8 +1,10 @@
 import { serve } from '@hono/node-server'
+import { swaggerUI } from '@hono/swagger-ui'
 import dotenv from 'dotenv'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
+import { openApiApp } from './openapi/routes.js'
 
 // Import routes
 import cart from './routes/cart.js'
@@ -36,6 +38,14 @@ app.get('/', (c) => {
     version: '1.0.0',
     timestamp: new Date().toISOString()
   })
+})
+
+// Swagger UI
+app.get('/docs', swaggerUI({ url: '/api/openapi.json' }))
+
+// OpenAPI JSON specification
+app.get('/api/openapi.json', (c) => {
+  return c.json(openApiApp.openapi)
 })
 
 // API routes
