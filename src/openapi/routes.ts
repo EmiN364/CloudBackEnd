@@ -90,7 +90,18 @@ openApiApp.openapi(
       }
     }
   },
-  (c) => c.json({ message: 'User registration endpoint' })
+  (c) => c.json({ 
+    message: 'User registered successfully',
+    user: {
+      id: 1,
+      email: 'user@example.com',
+      first_name: 'John',
+      last_name: 'Doe',
+      is_seller: false,
+      is_active: true
+    },
+    token: 'sample_token'
+  })
 );
 
 openApiApp.openapi(
@@ -142,7 +153,18 @@ openApiApp.openapi(
       }
     }
   },
-  (c) => c.json({ message: 'User login endpoint' })
+  (c) => c.json({ 
+    message: 'User logged in successfully',
+    user: {
+      id: 1,
+      email: 'user@example.com',
+      first_name: 'John',
+      last_name: 'Doe',
+      is_seller: false,
+      is_active: true
+    },
+    token: 'sample_token'
+  })
 );
 
 // Products routes
@@ -192,7 +214,27 @@ openApiApp.openapi(
       }
     }
   },
-  (c) => c.json({ message: 'Get products endpoint' })
+  (c) => c.json({
+    products: [
+      {
+        id: 1,
+        name: 'Sample Product',
+        description: 'A sample product description',
+        price: 29.99,
+        stock: 100,
+        store_id: 1,
+        is_active: true
+      }
+    ],
+    pagination: {
+      page: 1,
+      limit: 10,
+      total: 1,
+      totalPages: 1,
+      hasNext: false,
+      hasPrev: false
+    }
+  })
 );
 
 openApiApp.openapi(
@@ -256,7 +298,18 @@ openApiApp.openapi(
       }
     }
   },
-  (c) => c.json({ message: 'Create product endpoint' })
+  (c) => c.json({
+    message: 'Product created successfully',
+    product: {
+      id: 1,
+      name: 'Sample Product',
+      description: 'A sample product description',
+      price: 29.99,
+      stock: 100,
+      store_id: 1,
+      is_active: true
+    }
+  })
 );
 
 // Cart routes
@@ -299,7 +352,21 @@ openApiApp.openapi(
       }
     }
   },
-  (c) => c.json({ message: 'Get cart endpoint' })
+  (c) => c.json({
+    cart: [
+      {
+        id: 1,
+        product_id: 1,
+        amount: 2,
+        product: {
+          name: 'Sample Product',
+          price: 29.99,
+          stock: 100
+        }
+      }
+    ],
+    total: 59.98
+  })
 );
 
 // Images routes
@@ -359,7 +426,16 @@ openApiApp.openapi(
       }
     }
   },
-  (c) => c.json({ message: 'Upload image endpoint' })
+  (c) => c.json({
+    message: 'Image uploaded successfully',
+    image: {
+      id: 1,
+      key: 'products/sample-image.jpg',
+      url: 'https://example-bucket.s3.amazonaws.com/products/sample-image.jpg',
+      size: 1024,
+      mimetype: 'image/jpeg'
+    }
+  })
 );
 
 // Sales routes
@@ -416,7 +492,14 @@ openApiApp.openapi(
       }
     }
   },
-  (c) => c.json({ message: 'Create sale endpoint' })
+  (c) => c.json({
+    message: 'Sale created successfully',
+    sale: {
+      id: 1,
+      total: 59.98,
+      status: 'pending'
+    }
+  })
 );
 
 // Reviews routes
@@ -476,7 +559,15 @@ openApiApp.openapi(
       }
     }
   },
-  (c) => c.json({ message: 'Create review endpoint' })
+  (c) => c.json({
+    message: 'Review created successfully',
+    review: {
+      id: 1,
+      product_id: 1,
+      rating: 5,
+      comment: 'Great product!'
+    }
+  })
 );
 
 // Stores routes
@@ -535,7 +626,15 @@ openApiApp.openapi(
       }
     }
   },
-  (c) => c.json({ message: 'Create store endpoint' })
+  (c) => c.json({
+    message: 'Store created successfully',
+    store: {
+      id: 1,
+      name: 'Sample Store',
+      description: 'A sample store description',
+      user_id: 1
+    }
+  })
 );
 
 // Notifications routes
@@ -589,7 +688,25 @@ openApiApp.openapi(
       }
     }
   },
-  (c) => c.json({ message: 'Get notifications endpoint' })
+  (c) => c.json({
+    notifications: [
+      {
+        id: 1,
+        title: 'Welcome',
+        message: 'Welcome to our platform!',
+        is_read: false,
+        created_at: new Date().toISOString()
+      }
+    ],
+    pagination: {
+      page: 1,
+      limit: 10,
+      total: 1,
+      totalPages: 1,
+      hasNext: false,
+      hasPrev: false
+    }
+  })
 );
 
 // Likes routes
@@ -641,5 +758,5 @@ openApiApp.openapi(
       }
     }
   },
-  (c) => c.json({ message: 'Like product endpoint' })
+  (c) => c.json({ message: 'Product liked successfully' })
 );
