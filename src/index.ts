@@ -66,6 +66,5 @@ serve({
   port: port
 }, (info) => {
   console.log(`🚀 Server is running on http://localhost:${info.port}`)
-  console.log(`📚 API Documentation available at http://localhost:${info.port}/api`)
   console.log(`🔍 Health check at http://localhost:${info.port}/`)
 })
