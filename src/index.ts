@@ -5,6 +5,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { openApiApp } from './openapi/routes.js'
+import { openApiConfig } from './openapi/spec.js'
 
 // Import routes
 import cart from './routes/cart.js'
@@ -45,7 +46,7 @@ app.get('/docs', swaggerUI({ url: '/api/openapi.json' }))
 
 // OpenAPI JSON specification
 app.get('/api/openapi.json', (c) => {
-  return c.json(openApiApp.openapi)
+  return c.json(openApiApp.getOpenAPIDocument(openApiConfig))
 })
 
 // API routes
