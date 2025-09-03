@@ -6,6 +6,7 @@ import { logger } from 'hono/logger'
 
 // Import routes
 import cart from './routes/cart.js'
+import images from './routes/images.js'
 import likes from './routes/likes.js'
 import notifications from './routes/notifications.js'
 import products from './routes/products.js'
@@ -46,6 +47,7 @@ app.route('/api/sales', sales)
 app.route('/api/reviews', reviews)
 app.route('/api/notifications', notifications)
 app.route('/api/likes', likes)
+app.route('/api/images', images)
 
 // 404 handler
 app.notFound((c) => {

@@ -258,6 +258,43 @@ Unlike a product
 #### POST `/api/likes/toggle/:productId`
 Toggle like status
 
+### Image Management
+
+#### POST `/api/images/upload`
+Upload single image to S3 (requires authentication)
+```
+Form data:
+- image: file (max 5MB, image files only)
+- folder: string (optional, defaults to 'products')
+```
+
+#### POST `/api/images/upload-multiple`
+Upload multiple images to S3 (requires authentication)
+```
+Form data:
+- images: files[] (max 10 images, 5MB each)
+- folder: string (optional, defaults to 'products')
+```
+
+#### GET `/api/images/:id`
+Get image by ID
+
+#### DELETE `/api/images/:id`
+Delete image from S3 and database (requires authentication)
+
+#### POST `/api/images/presigned-url`
+Generate presigned URL for direct S3 upload (requires authentication)
+```json
+{
+  "filename": "image.jpg",
+  "folder": "products",
+  "expiresIn": 3600
+}
+```
+
+#### GET `/api/images/folder/:folder`
+Get images by folder with pagination
+
 ## Authentication
 
 The API uses JWT tokens for authentication. Include the token in the Authorization header:
