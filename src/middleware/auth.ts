@@ -73,6 +73,6 @@ export const generateToken = (user: AuthenticatedUser): string => {
   return jwt.sign(
     { id: user.id, email: user.email, is_seller: user.is_seller },
     secret,
-    { expiresIn }
+    { expiresIn: expiresIn as jwt.SignOptions['expiresIn'] }
   );
 };
