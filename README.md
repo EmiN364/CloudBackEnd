@@ -26,29 +26,33 @@ A comprehensive REST API for an e-commerce platform built with Hono.js, TypeScri
 
 ## Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - PostgreSQL 12+
 - pnpm (recommended) or npm
 
 ## Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone <repository-url>
    cd backend-cloud
    ```
 
 2. **Install dependencies**
+
    ```bash
    pnpm install
    ```
 
 3. **Set up environment variables**
+
    ```bash
    cp env.example .env
    ```
-   
+
    Edit `.env` with your database credentials:
+
    ```env
    DB_HOST=localhost
    DB_PORT=5432
@@ -62,15 +66,17 @@ A comprehensive REST API for an e-commerce platform built with Hono.js, TypeScri
    ```
 
 4. **Set up the database**
+
    ```bash
    # Create database
    createdb your_database_name
-   
+
    # Run schema
    psql -d your_database_name -f schema.sql
    ```
 
 5. **Start the development server**
+
    ```bash
    pnpm dev
    ```
@@ -82,7 +88,9 @@ The API will be available at `http://localhost:3000`
 ### Authentication
 
 #### POST `/api/users/register`
+
 Register a new user
+
 ```json
 {
   "email": "user@example.com",
@@ -94,7 +102,9 @@ Register a new user
 ```
 
 #### POST `/api/users/login`
+
 Login user
+
 ```json
 {
   "email": "user@example.com",
@@ -105,19 +115,24 @@ Login user
 ### Users
 
 #### GET `/api/users/profile`
+
 Get current user profile (requires authentication)
 
 #### PUT `/api/users/profile`
+
 Update user profile (requires authentication)
 
 #### GET `/api/users/:id`
+
 Get public user information
 
 ### Products
 
 #### GET `/api/products`
+
 Get all products with pagination and filters
-```
+
+```plaintext
 Query parameters:
 - page: Page number (default: 1)
 - limit: Items per page (default: 20)
@@ -127,10 +142,13 @@ Query parameters:
 ```
 
 #### GET `/api/products/:id`
+
 Get product by ID with reviews
 
 #### POST `/api/products`
+
 Create new product (seller only)
+
 ```json
 {
   "name": "Product Name",
@@ -141,35 +159,45 @@ Create new product (seller only)
 ```
 
 #### PUT `/api/products/:id`
+
 Update product (seller only, own products)
 
 #### DELETE `/api/products/:id`
+
 Delete product (seller only, own products)
 
 #### PATCH `/api/products/:id/pause`
+
 Pause/unpause product (seller only)
 
 ### Stores
 
 #### GET `/api/stores`
+
 Get all stores with pagination
 
 #### GET `/api/stores/:id`
+
 Get store by ID
 
 #### POST `/api/stores`
+
 Create store (seller only)
 
 #### PUT `/api/stores/:id`
+
 Update store (seller only, own store)
 
 ### Cart
 
 #### GET `/api/cart`
+
 Get user's cart (requires authentication)
 
 #### POST `/api/cart`
+
 Add product to cart
+
 ```json
 {
   "product_id": 1,
@@ -178,21 +206,27 @@ Add product to cart
 ```
 
 #### PUT `/api/cart/:productId`
+
 Update cart item amount
 
 #### DELETE `/api/cart/:productId`
+
 Remove product from cart
 
 #### DELETE `/api/cart`
+
 Clear entire cart
 
 ### Sales
 
 #### GET `/api/sales`
+
 Get user's purchase history (requires authentication)
 
 #### POST `/api/sales`
+
 Create new sale (checkout from cart)
+
 ```json
 {
   "total": 199.98,
@@ -202,18 +236,23 @@ Create new sale (checkout from cart)
 ```
 
 #### GET `/api/sales/:id`
+
 Get sale details
 
 #### PATCH `/api/sales/:id/cancel`
+
 Cancel sale (if status allows)
 
 ### Reviews
 
 #### GET `/api/reviews/product/:productId`
+
 Get reviews for a product
 
 #### POST `/api/reviews`
+
 Create review (requires authentication)
+
 ```json
 {
   "product_id": 1,
@@ -223,29 +262,37 @@ Create review (requires authentication)
 ```
 
 #### PUT `/api/reviews/:id`
+
 Update review (requires authentication)
 
 #### DELETE `/api/reviews/:id`
+
 Delete review (requires authentication)
 
 ### Notifications
 
 #### GET `/api/notifications`
+
 Get user's notifications (requires authentication)
 
 #### PATCH `/api/notifications/:id/read`
+
 Mark notification as read
 
 #### PATCH `/api/notifications/read-all`
+
 Mark all notifications as read
 
 ### Product Likes
 
 #### GET `/api/likes/user/me`
+
 Get user's liked products (requires authentication)
 
 #### POST `/api/likes`
+
 Like a product
+
 ```json
 {
   "product_id": 1
@@ -253,37 +300,47 @@ Like a product
 ```
 
 #### DELETE `/api/likes/:productId`
+
 Unlike a product
 
 #### POST `/api/likes/toggle/:productId`
+
 Toggle like status
 
 ### Image Management
 
 #### POST `/api/images/upload`
+
 Upload single image to S3 (requires authentication)
-```
+
+```plaintext
 Form data:
 - image: file (max 5MB, image files only)
 - folder: string (optional, defaults to 'products')
 ```
 
 #### POST `/api/images/upload-multiple`
+
 Upload multiple images to S3 (requires authentication)
-```
+
+```plaintext
 Form data:
 - images: files[] (max 10 images, 5MB each)
 - folder: string (optional, defaults to 'products')
 ```
 
 #### GET `/api/images/:id`
+
 Get image by ID
 
 #### DELETE `/api/images/:id`
+
 Delete image from S3 and database (requires authentication)
 
 #### POST `/api/images/presigned-url`
+
 Generate presigned URL for direct S3 upload (requires authentication)
+
 ```json
 {
   "filename": "image.jpg",
@@ -293,13 +350,14 @@ Generate presigned URL for direct S3 upload (requires authentication)
 ```
 
 #### GET `/api/images/folder/:folder`
+
 Get images by folder with pagination
 
 ## Authentication
 
 The API uses JWT tokens for authentication. Include the token in the Authorization header:
 
-```
+```plaintext
 Authorization: Bearer <your_jwt_token>
 ```
 
@@ -314,6 +372,7 @@ All endpoints return consistent error responses:
 ```
 
 HTTP Status Codes:
+
 - `200` - Success
 - `201` - Created
 - `400` - Bad Request
@@ -355,7 +414,7 @@ The database schema is defined in `schema.sql` and includes:
 
 ### Project Structure
 
-```
+```plaintext
 src/
 ├── config/
 │   └── database.ts      # Database configuration
