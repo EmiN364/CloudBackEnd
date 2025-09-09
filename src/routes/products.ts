@@ -38,10 +38,19 @@ products.get('/', async (c) => {
     
     const offset = (page - 1) * limit;
     values.push(limit, offset);
+
+    console.log(`SELECT p.id, p.name, p.description, p.category, p.price, p.paused, p.image_url,
+              u.first_name, u.last_name, u.id as seller_id,
+       FROM products p
+       LEFT JOIN users u ON p.seller_id = u.id
+       ${whereClause}
+       ORDER BY p.id DESC
+       LIMIT $${paramCount} OFFSET $${paramCount + 1}`,
+      values)
     
     const result = await pool.query(
-      `SELECT p.id, p.name, p.description, p.category, p.price, p.paused,
-              u.first_name, u.last_name, u.id as seller_id,
+      `SELECT p.id, p.name, p.description, p.category, p.price, p.paused, p.image_url,
+              u.first_name, u.last_name, u.id as seller_id
        FROM products p
        LEFT JOIN users u ON p.seller_id = u.id
        ${whereClause}
@@ -49,6 +58,8 @@ products.get('/', async (c) => {
        LIMIT $${paramCount} OFFSET $${paramCount + 1}`,
       values
     );
+
+    console.log("result", result);
     
     // Get total count
     const countResult = await pool.query(
@@ -71,6 +82,7 @@ products.get('/', async (c) => {
       }
     });
   } catch (error) {
+    console.error(error);
     return c.json({ error: 'Internal server error' }, 500);
   }
 });
@@ -142,7 +154,7 @@ products.post('/', authMiddleware, sellerMiddleware, async (c) => {
       );
       userId = newUser.rows[0].id;
       await pool.query<{ id: number }>(
-        `INSERT INTO stores (store_id, store_name) VALUES ($1, $2) RETURNING id`,
+        `INSERT INTO stores (store_id, store_name) VALUES ($1, $2)`,
         [userId, validatedData.store_name]
       );
     }
