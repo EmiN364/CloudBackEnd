@@ -12,23 +12,17 @@ CREATE TABLE IF NOT EXISTS users(
     address VARCHAR(255) DEFAULT ''
 );
 
-CREATE TABLE IF NOT EXISTS images(
-    id SERIAL NOT NULL PRIMARY KEY,
-    image BYTEA NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS products(
     id SERIAL NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
     category TEXT NOT NULL,
     seller_id INTEGER,
-    image_id INTEGER,
+    image_url TEXT,
     price DOUBLE PRECISION NOT NULL,
     deleted BOOLEAN NOT NULL DEFAULT FALSE,
     paused BOOLEAN NOT NULL DEFAULT FALSE,
     FOREIGN KEY(seller_id) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE,
-    FOREIGN KEY(image_id) REFERENCES images(id) ON UPDATE CASCADE ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS sales(
@@ -75,12 +69,10 @@ CREATE TABLE IF NOT EXISTS stores
     store_id INTEGER NOT NULL PRIMARY KEY,
     store_name TEXT,
     description TEXT,
-    store_image_id INTEGER,
-    cover_image_id INTEGER,
+    store_image_url TEXT,
+    cover_image_url TEXT,
     cbu varchar(255),
     FOREIGN KEY (store_id) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE,
-    FOREIGN KEY(store_image_id) REFERENCES images(id) ON UPDATE CASCADE ON DELETE SET NULL,
-    FOREIGN KEY(cover_image_id) REFERENCES images(id) ON UPDATE CASCADE ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS notifications

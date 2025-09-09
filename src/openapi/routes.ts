@@ -1,5 +1,26 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { z } from 'zod';
+import {
+  CartProductSchema,
+  CreateCartProductSchema,
+  CreateNotificationSchema,
+  CreateProductLikeSchema,
+  CreateProductSchema,
+  CreateReviewSchema,
+  CreateSaleSchema,
+  CreateStoreSchema,
+  CreateUserSchema,
+  ErrorSchema,
+  LoginSchema,
+  NotificationSchema,
+  PaginationSchema,
+  ProductSchema,
+  ReviewSchema,
+  SaleSchema,
+  StoreSchema,
+  UploadedImageSchema,
+  UserSchema
+} from '../schemas/unified.js';
 import { openApiConfig } from './spec.js';
 
 // Create OpenAPI app
@@ -49,13 +70,7 @@ openApiApp.openapi(
       body: {
         content: {
           'application/json': {
-            schema: z.object({
-              email: z.string().email(),
-              password: z.string().min(6),
-              first_name: z.string().min(1),
-              last_name: z.string().min(1),
-              is_seller: z.boolean().optional()
-            })
+            schema: CreateUserSchema
           }
         }
       }
@@ -67,14 +82,7 @@ openApiApp.openapi(
           'application/json': {
             schema: z.object({
               message: z.string(),
-              user: z.object({
-                id: z.number(),
-                email: z.string(),
-                first_name: z.string(),
-                last_name: z.string(),
-                is_seller: z.boolean(),
-                is_active: z.boolean()
-              }),
+              user: UserSchema.omit({ created_at: true, updated_at: true }),
               token: z.string()
             })
           }
@@ -84,7 +92,7 @@ openApiApp.openapi(
         description: 'Bad request',
         content: {
           'application/json': {
-            schema: z.object({ error: z.string() })
+            schema: ErrorSchema
           }
         }
       }
@@ -95,10 +103,13 @@ openApiApp.openapi(
     user: {
       id: 1,
       email: 'user@example.com',
+      phone: '+1234567890',
       first_name: 'John',
       last_name: 'Doe',
       is_seller: false,
-      is_active: true
+      is_active: true,
+      locale: 'en',
+      address: '123 Main St'
     },
     token: 'sample_token'
   })
@@ -115,10 +126,7 @@ openApiApp.openapi(
       body: {
         content: {
           'application/json': {
-            schema: z.object({
-              email: z.string().email(),
-              password: z.string()
-            })
+            schema: LoginSchema
           }
         }
       }
@@ -130,14 +138,7 @@ openApiApp.openapi(
           'application/json': {
             schema: z.object({
               message: z.string(),
-              user: z.object({
-                id: z.number(),
-                email: z.string(),
-                first_name: z.string(),
-                last_name: z.string(),
-                is_seller: z.boolean(),
-                is_active: z.boolean()
-              }),
+              user: UserSchema.omit({ created_at: true, updated_at: true }),
               token: z.string()
             })
           }
@@ -147,7 +148,7 @@ openApiApp.openapi(
         description: 'Invalid credentials',
         content: {
           'application/json': {
-            schema: z.object({ error: z.string() })
+            schema: ErrorSchema
           }
         }
       }
@@ -158,10 +159,13 @@ openApiApp.openapi(
     user: {
       id: 1,
       email: 'user@example.com',
+      phone: '+1234567890',
       first_name: 'John',
       last_name: 'Doe',
       is_seller: false,
-      is_active: true
+      is_active: true,
+      locale: 'en',
+      address: '123 Main St'
     },
     token: 'sample_token'
   })
@@ -191,23 +195,8 @@ openApiApp.openapi(
         content: {
           'application/json': {
             schema: z.object({
-              products: z.array(z.object({
-                id: z.number(),
-                name: z.string(),
-                description: z.string(),
-                price: z.number(),
-                stock: z.number(),
-                store_id: z.number(),
-                is_active: z.boolean()
-              })),
-              pagination: z.object({
-                page: z.number(),
-                limit: z.number(),
-                total: z.number(),
-                totalPages: z.number(),
-                hasNext: z.boolean(),
-                hasPrev: z.boolean()
-              })
+              products: z.array(ProductSchema.omit({ created_at: true, updated_at: true })),
+              pagination: PaginationSchema
             })
           }
         }
@@ -220,9 +209,12 @@ openApiApp.openapi(
         id: 1,
         name: 'Sample Product',
         description: 'A sample product description',
+        category: 'Electronics',
         price: 29.99,
         stock: 100,
         store_id: 1,
+        image_url: 'https://example.com/image.jpg',
+        paused: false,
         is_active: true
       }
     ],
@@ -249,13 +241,7 @@ openApiApp.openapi(
       body: {
         content: {
           'application/json': {
-            schema: z.object({
-              name: z.string().min(1),
-              description: z.string().min(1),
-              price: z.number().positive(),
-              stock: z.number().nonnegative(),
-              store_id: z.number()
-            })
+            schema: CreateProductSchema
           }
         }
       }
@@ -267,15 +253,7 @@ openApiApp.openapi(
           'application/json': {
             schema: z.object({
               message: z.string(),
-              product: z.object({
-                id: z.number(),
-                name: z.string(),
-                description: z.string(),
-                price: z.number(),
-                stock: z.number(),
-                store_id: z.number(),
-                is_active: z.boolean()
-              })
+              product: ProductSchema.omit({ created_at: true, updated_at: true })
             })
           }
         }
@@ -284,7 +262,7 @@ openApiApp.openapi(
         description: 'Unauthorized',
         content: {
           'application/json': {
-            schema: z.object({ error: z.string() })
+            schema: ErrorSchema
           }
         }
       },
@@ -292,7 +270,7 @@ openApiApp.openapi(
         description: 'Forbidden - Seller access required',
         content: {
           'application/json': {
-            schema: z.object({ error: z.string() })
+            schema: ErrorSchema
           }
         }
       }
@@ -304,9 +282,12 @@ openApiApp.openapi(
       id: 1,
       name: 'Sample Product',
       description: 'A sample product description',
+      category: 'Electronics',
       price: 29.99,
       stock: 100,
       store_id: 1,
+      image_url: 'https://example.com/image.jpg',
+      paused: false,
       is_active: true
     }
   })
@@ -346,7 +327,7 @@ openApiApp.openapi(
         description: 'Unauthorized',
         content: {
           'application/json': {
-            schema: z.object({ error: z.string() })
+            schema: ErrorSchema
           }
         }
       }
@@ -397,13 +378,7 @@ openApiApp.openapi(
           'application/json': {
             schema: z.object({
               message: z.string(),
-              image: z.object({
-                id: z.number(),
-                key: z.string(),
-                url: z.string(),
-                size: z.number(),
-                mimetype: z.string()
-              })
+              image: UploadedImageSchema
             })
           }
         }
@@ -412,7 +387,7 @@ openApiApp.openapi(
         description: 'Bad request',
         content: {
           'application/json': {
-            schema: z.object({ error: z.string() })
+            schema: ErrorSchema
           }
         }
       },
@@ -420,7 +395,7 @@ openApiApp.openapi(
         description: 'Unauthorized',
         content: {
           'application/json': {
-            schema: z.object({ error: z.string() })
+            schema: ErrorSchema
           }
         }
       }
@@ -451,9 +426,7 @@ openApiApp.openapi(
       body: {
         content: {
           'application/json': {
-            schema: z.object({
-              cart_product_ids: z.array(z.number())
-            })
+            schema: CreateSaleSchema
           }
         }
       }
@@ -465,11 +438,7 @@ openApiApp.openapi(
           'application/json': {
             schema: z.object({
               message: z.string(),
-              sale: z.object({
-                id: z.number(),
-                total: z.number(),
-                status: z.string()
-              })
+              sale: SaleSchema.omit({ created_at: true, updated_at: true, user_id: true })
             })
           }
         }
@@ -478,7 +447,7 @@ openApiApp.openapi(
         description: 'Bad request',
         content: {
           'application/json': {
-            schema: z.object({ error: z.string() })
+            schema: ErrorSchema
           }
         }
       },
@@ -486,7 +455,7 @@ openApiApp.openapi(
         description: 'Unauthorized',
         content: {
           'application/json': {
-            schema: z.object({ error: z.string() })
+            schema: ErrorSchema
           }
         }
       }
@@ -497,7 +466,10 @@ openApiApp.openapi(
     sale: {
       id: 1,
       total: 59.98,
-      status: 'pending'
+      status: 'pending' as const,
+      note: 'Sample sale',
+      invoice_id: 1,
+      address: '123 Main St'
     }
   })
 );
@@ -515,11 +487,7 @@ openApiApp.openapi(
       body: {
         content: {
           'application/json': {
-            schema: z.object({
-              product_id: z.number(),
-              rating: z.number().min(1).max(5),
-              comment: z.string().min(1)
-            })
+            schema: CreateReviewSchema
           }
         }
       }
@@ -531,12 +499,7 @@ openApiApp.openapi(
           'application/json': {
             schema: z.object({
               message: z.string(),
-              review: z.object({
-                id: z.number(),
-                product_id: z.number(),
-                rating: z.number(),
-                comment: z.string()
-              })
+              review: ReviewSchema.omit({ created_at: true, updated_at: true, user_id: true })
             })
           }
         }
@@ -545,7 +508,7 @@ openApiApp.openapi(
         description: 'Bad request',
         content: {
           'application/json': {
-            schema: z.object({ error: z.string() })
+            schema: ErrorSchema
           }
         }
       },
@@ -553,7 +516,7 @@ openApiApp.openapi(
         description: 'Unauthorized',
         content: {
           'application/json': {
-            schema: z.object({ error: z.string() })
+            schema: ErrorSchema
           }
         }
       }
@@ -565,7 +528,7 @@ openApiApp.openapi(
       id: 1,
       product_id: 1,
       rating: 5,
-      comment: 'Great product!'
+      description: 'Great product!'
     }
   })
 );
@@ -583,10 +546,7 @@ openApiApp.openapi(
       body: {
         content: {
           'application/json': {
-            schema: z.object({
-              name: z.string().min(1),
-              description: z.string().min(1)
-            })
+            schema: CreateStoreSchema
           }
         }
       }
@@ -598,12 +558,7 @@ openApiApp.openapi(
           'application/json': {
             schema: z.object({
               message: z.string(),
-              store: z.object({
-                id: z.number(),
-                name: z.string(),
-                description: z.string(),
-                user_id: z.number()
-              })
+              store: StoreSchema.omit({ created_at: true, updated_at: true })
             })
           }
         }
@@ -612,7 +567,7 @@ openApiApp.openapi(
         description: 'Unauthorized',
         content: {
           'application/json': {
-            schema: z.object({ error: z.string() })
+            schema: ErrorSchema
           }
         }
       },
@@ -620,7 +575,7 @@ openApiApp.openapi(
         description: 'Forbidden - Seller access required',
         content: {
           'application/json': {
-            schema: z.object({ error: z.string() })
+            schema: ErrorSchema
           }
         }
       }
@@ -630,9 +585,12 @@ openApiApp.openapi(
     message: 'Store created successfully',
     store: {
       id: 1,
-      name: 'Sample Store',
+      store_name: 'Sample Store',
       description: 'A sample store description',
-      user_id: 1
+      user_id: 1,
+      store_image_url: 'https://example.com/image.jpg',
+      cover_image_url: 'https://example.com/image.jpg',
+      cbu: '1234567890123456789012'
     }
   })
 );
@@ -659,21 +617,8 @@ openApiApp.openapi(
         content: {
           'application/json': {
             schema: z.object({
-              notifications: z.array(z.object({
-                id: z.number(),
-                title: z.string(),
-                message: z.string(),
-                is_read: z.boolean(),
-                created_at: z.string()
-              })),
-              pagination: z.object({
-                page: z.number(),
-                limit: z.number(),
-                total: z.number(),
-                totalPages: z.number(),
-                hasNext: z.boolean(),
-                hasPrev: z.boolean()
-              })
+              notifications: z.array(NotificationSchema.omit({ updated_at: true, user_id: true })),
+              pagination: PaginationSchema
             })
           }
         }
@@ -682,7 +627,7 @@ openApiApp.openapi(
         description: 'Unauthorized',
         content: {
           'application/json': {
-            schema: z.object({ error: z.string() })
+            schema: ErrorSchema
           }
         }
       }
@@ -694,7 +639,9 @@ openApiApp.openapi(
         id: 1,
         title: 'Welcome',
         message: 'Welcome to our platform!',
-        is_read: false,
+        type: 'WELCOME',
+        product_id: undefined,
+        read: false,
         created_at: new Date().toISOString()
       }
     ],
@@ -722,9 +669,7 @@ openApiApp.openapi(
       body: {
         content: {
           'application/json': {
-            schema: z.object({
-              product_id: z.number()
-            })
+            schema: CreateProductLikeSchema
           }
         }
       }
@@ -744,7 +689,7 @@ openApiApp.openapi(
         description: 'Bad request',
         content: {
           'application/json': {
-            schema: z.object({ error: z.string() })
+            schema: ErrorSchema
           }
         }
       },
@@ -752,7 +697,7 @@ openApiApp.openapi(
         description: 'Unauthorized',
         content: {
           'application/json': {
-            schema: z.object({ error: z.string() })
+            schema: ErrorSchema
           }
         }
       }

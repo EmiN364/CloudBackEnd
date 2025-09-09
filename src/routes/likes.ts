@@ -17,12 +17,10 @@ likes.get('/user/me', authMiddleware, async (c) => {
     const result = await pool.query(
       `SELECT pl.product_id, pl.user_id,
               p.name, p.description, p.price, p.category,
-              u.first_name, u.last_name,
-              i.id as image_id
+              u.first_name, u.last_name
        FROM product_likes pl
        JOIN products p ON pl.product_id = p.id
        JOIN users u ON p.seller_id = u.id
-       LEFT JOIN images i ON p.image_id = i.id
        WHERE pl.user_id = $1 AND p.deleted = false AND p.paused = false
        ORDER BY pl.product_id DESC
        LIMIT $2 OFFSET $3`,
