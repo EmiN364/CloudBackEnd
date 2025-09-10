@@ -5,7 +5,7 @@ FROM base AS builder
 RUN apk add --no-cache gcompat
 WORKDIR /app
 
-COPY package*json tsconfig.json src .env ./
+COPY package*json tsconfig.json src schema.sql .env ./
 
 RUN npm ci && \
     npm run build && \
@@ -21,6 +21,7 @@ COPY --from=builder --chown=hono:nodejs /app/node_modules /app/node_modules
 COPY --from=builder --chown=hono:nodejs /app/dist /app/dist
 COPY --from=builder --chown=hono:nodejs /app/package.json /app/package.json
 COPY --from=builder --chown=hono:nodejs /app/.env /app/.env
+COPY --from=builder --chown=hono:nodejs /app/schema.sql /app/schema.sql
 
 USER hono
 EXPOSE 3000
