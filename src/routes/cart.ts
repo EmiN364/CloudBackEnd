@@ -14,11 +14,9 @@ cart.get('/', authMiddleware, async (c) => {
       `SELECT cp.product_id, cp.amount,
               p.name, p.description, p.price, p.paused,
               u.first_name, u.last_name,
-              i.id as image_id
        FROM cart_products cp
        JOIN products p ON cp.product_id = p.id
        JOIN users u ON p.seller_id = u.id
-       LEFT JOIN images i ON p.image_id = i.id
        WHERE cp.user_id = $1 AND p.deleted = false AND p.paused = false
        ORDER BY cp.product_id`,
       [user.id]

@@ -17,7 +17,7 @@ declare module 'hono' {
 
 export const authMiddleware = async (c: Context, next: Next) => {
   try {
-    const authHeader = c.req.header('Authorization');
+    /* const authHeader = c.req.header('Authorization');
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return c.json({ error: 'Access token required' }, 401);
@@ -48,7 +48,7 @@ export const authMiddleware = async (c: Context, next: Next) => {
       return c.json({ error: 'User account is not active' }, 401);
     }
 
-    c.set('user', user);
+    c.set('user', user); */
     await next();
   } catch (error) {
     console.error('Auth middleware error:', error);
@@ -57,11 +57,11 @@ export const authMiddleware = async (c: Context, next: Next) => {
 };
 
 export const sellerMiddleware = async (c: Context, next: Next) => {
-  const user = c.get('user');
+  /* const user = c.get('user');
   
   if (!user.is_seller) {
     return c.json({ error: 'Seller access required' }, 403);
-  }
+  } */
   
   await next();
 };

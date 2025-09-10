@@ -38,19 +38,28 @@ products.get('/', async (c) => {
     
     const offset = (page - 1) * limit;
     values.push(limit, offset);
-    
-    const result = await pool.query(
-      `SELECT p.id, p.name, p.description, p.category, p.price, p.paused,
+
+    console.log(`SELECT p.id, p.name, p.description, p.category, p.price, p.paused, p.image_url,
               u.first_name, u.last_name, u.id as seller_id,
-              i.id as image_id
        FROM products p
        LEFT JOIN users u ON p.seller_id = u.id
-       LEFT JOIN images i ON p.image_id = i.id
+       ${whereClause}
+       ORDER BY p.id DESC
+       LIMIT $${paramCount} OFFSET $${paramCount + 1}`,
+      values)
+    
+    const result = await pool.query(
+      `SELECT p.id, p.name, p.description, p.category, p.price, p.paused, p.image_url,
+              u.first_name, u.last_name, u.id as seller_id
+       FROM products p
+       LEFT JOIN users u ON p.seller_id = u.id
        ${whereClause}
        ORDER BY p.id DESC
        LIMIT $${paramCount} OFFSET $${paramCount + 1}`,
       values
     );
+
+    console.log("result", result);
     
     // Get total count
     const countResult = await pool.query(
@@ -73,6 +82,7 @@ products.get('/', async (c) => {
       }
     });
   } catch (error) {
+    console.error(error);
     return c.json({ error: 'Internal server error' }, 500);
   }
 });
@@ -89,11 +99,9 @@ products.get('/:id', async (c) => {
     const result = await pool.query(
       `SELECT p.id, p.name, p.description, p.category, p.price, p.paused,
               u.first_name, u.last_name, u.id as seller_id,
-              i.id as image_id,
               s.store_name, s.description as store_description
        FROM products p
        LEFT JOIN users u ON p.seller_id = u.id
-       LEFT JOIN images i ON p.image_id = i.id
        LEFT JOIN stores s ON p.seller_id = s.store_id
        WHERE p.id = $1 AND p.deleted = false`,
       [productId]
@@ -127,20 +135,40 @@ products.get('/:id', async (c) => {
 // Create product (seller only)
 products.post('/', authMiddleware, sellerMiddleware, async (c) => {
   try {
-    const user = c.get('user');
     const body = await c.req.json();
     const validatedData = createProductSchema.parse(body);
+
+    // Check if user already exists
+    const existingUser = await pool.query<{ id: number }>(
+      'SELECT id FROM users WHERE email = $1',
+      [validatedData.email]
+    );
+
+    let userId;
+    if (existingUser.rows.length > 0) {
+      userId = existingUser.rows[0].id;
+    } else {
+      const newUser = await pool.query<{ id: number }>(
+        `INSERT INTO users (email) VALUES ($1) RETURNING id`,
+        [validatedData.email]
+      );
+      userId = newUser.rows[0].id;
+      await pool.query<{ id: number }>(
+        `INSERT INTO stores (store_id, store_name) VALUES ($1, $2)`,
+        [userId, validatedData.store_name]
+      );
+    }
     
     const result = await pool.query(
-      `INSERT INTO products (name, description, category, seller_id, image_id, price)
+      `INSERT INTO products (name, description, category, seller_id, image_url, price)
        VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, name, description, category, price, seller_id, image_id`,
+       RETURNING id, name, description, category, price, seller_id, image_url`,
       [
         validatedData.name,
         validatedData.description,
         validatedData.category,
-        user.id,
-        validatedData.image_id,
+        userId,
+        validatedData.image_url,
         validatedData.price
       ]
     );
@@ -202,7 +230,7 @@ products.put('/:id', authMiddleware, sellerMiddleware, async (c) => {
     const result = await pool.query(
       `UPDATE products SET ${updateFields.join(', ')}
        WHERE id = $${paramCount} AND seller_id = $${paramCount + 1} AND deleted = false
-       RETURNING id, name, description, category, price, seller_id, image_id, paused`,
+        RETURNING id, name, description, category, price, seller_id, image_url, paused`,
       values
     );
     

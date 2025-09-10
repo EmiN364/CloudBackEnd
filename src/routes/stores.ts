@@ -28,11 +28,8 @@ stores.get('/', async (c) => {
     const result = await pool.query(
       `SELECT s.store_id, s.store_name, s.description, s.cbu,
               u.first_name, u.last_name, u.email,
-              si.id as store_image_id, ci.id as cover_image_id
        FROM stores s
        JOIN users u ON s.store_id = u.id
-       LEFT JOIN images si ON s.store_image_id = si.id
-       LEFT JOIN images ci ON s.cover_image_id = ci.id
        ${whereClause}
        ORDER BY s.store_id DESC
        LIMIT $${paramCount} OFFSET $${paramCount + 1}`,
@@ -76,11 +73,8 @@ stores.get('/:id', async (c) => {
     const result = await pool.query(
       `SELECT s.store_id, s.store_name, s.description, s.cbu,
               u.first_name, u.last_name, u.email, u.locale, u.address,
-              si.id as store_image_id, ci.id as cover_image_id
        FROM stores s
        JOIN users u ON s.store_id = u.id
-       LEFT JOIN images si ON s.store_image_id = si.id
-       LEFT JOIN images ci ON s.cover_image_id = ci.id
        WHERE s.store_id = $1 AND u.deleted = false AND u.is_active = true`,
       [storeId]
     );
@@ -123,15 +117,15 @@ stores.post('/', authMiddleware, sellerMiddleware, async (c) => {
     const validatedData = createStoreSchema.parse(body);
     
     const result = await pool.query(
-      `INSERT INTO stores (store_id, store_name, description, store_image_id, cover_image_id, cbu)
+      `INSERT INTO stores (store_id, store_name, description, store_image_url, cover_image_url, cbu)
        VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING store_id, store_name, description, store_image_id, cover_image_id, cbu`,
+       RETURNING store_id, store_name, description, store_image_url, cover_image_url, cbu`,
       [
         user.id,
         validatedData.store_name,
         validatedData.description,
-        validatedData.store_image_id,
-        validatedData.cover_image_id,
+        validatedData.store_image_url,
+        validatedData.cover_image_url,
         validatedData.cbu
       ]
     );
@@ -197,7 +191,7 @@ stores.put('/:id', authMiddleware, sellerMiddleware, async (c) => {
     const result = await pool.query(
       `UPDATE stores SET ${updateFields.join(', ')}
        WHERE store_id = $${paramCount}
-       RETURNING store_id, store_name, description, store_image_id, cover_image_id, cbu`,
+       RETURNING store_id, store_name, description, store_image_url, cover_image_url, cbu`,
       values
     );
     
@@ -220,10 +214,7 @@ stores.get('/me/store', authMiddleware, sellerMiddleware, async (c) => {
     
     const result = await pool.query(
       `SELECT s.store_id, s.store_name, s.description, s.cbu,
-              si.id as store_image_id, ci.id as cover_image_id
        FROM stores s
-       LEFT JOIN images si ON s.store_image_id = si.id
-       LEFT JOIN images ci ON s.cover_image_id = ci.id
        WHERE s.store_id = $1`,
       [user.id]
     );
