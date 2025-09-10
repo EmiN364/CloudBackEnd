@@ -4,6 +4,7 @@ import dotenv from 'dotenv'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
+import { initializeDatabase, testDatabaseConnection } from './config/init-db.js'
 import { openApiApp } from './openapi/routes.js'
 import { openApiConfig } from './openapi/spec.js'
 
@@ -74,10 +75,31 @@ app.onError((err, c) => {
 // Start server
 const port = parseInt(process.env.PORT || '3000')
 
-serve({
-  fetch: app.fetch,
-  port: port
-}, (info) => {
-  console.log(`🚀 Server is running on http://localhost:${info.port}`)
-  console.log(`🔍 Health check at http://localhost:${info.port}/`)
-})
+// Initialize database before starting server
+async function startServer() {
+  try {
+    console.log('🔄 Starting server initialization...')
+    
+    // Test database connection
+    await testDatabaseConnection()
+    
+    // Initialize database schema if needed
+    await initializeDatabase()
+    
+    // Start the server
+    serve({
+      fetch: app.fetch,
+      port: port
+    }, (info) => {
+      console.log(`🚀 Server is running on http://localhost:${info.port}`)
+      console.log(`🔍 Health check at http://localhost:${info.port}/`)
+      console.log(`📚 API documentation at http://localhost:${info.port}/docs`)
+    })
+  } catch (error) {
+    console.error('💥 Failed to start server:', error)
+    process.exit(1)
+  }
+}
+
+// Start the server
+startServer()
