@@ -12,7 +12,7 @@ A comprehensive REST API for an e-commerce platform built with Hono.js, TypeScri
 - **Reviews & Ratings**: Product reviews with validation
 - **Notifications**: User notification system
 - **Product Likes**: Like/unlike products functionality
-- **Authentication**: JWT-based authentication with role-based access control
+- **Authentication**: AWS Cognito authentication with role-based access control
 
 ## Tech Stack
 
@@ -20,7 +20,7 @@ A comprehensive REST API for an e-commerce platform built with Hono.js, TypeScri
 - **Framework**: Hono.js
 - **Language**: TypeScript
 - **Database**: PostgreSQL
-- **Authentication**: JWT with bcrypt
+- **Authentication**: AWS Cognito Hosted UI
 - **Validation**: Zod
 - **Package Manager**: pnpm
 
@@ -59,8 +59,8 @@ A comprehensive REST API for an e-commerce platform built with Hono.js, TypeScri
    DB_NAME=your_database_name
    DB_USER=your_username
    DB_PASSWORD=your_password
-   JWT_SECRET=your_jwt_secret_key_here
-   JWT_EXPIRES_IN=24h
+   COGNITO_USER_POOL_ID=your_cognito_user_pool_id
+   COGNITO_CLIENT_ID=your_cognito_client_id
    PORT=3000
    NODE_ENV=development
    ```
@@ -355,11 +355,13 @@ Get images by folder with pagination
 
 ## Authentication
 
-The API uses JWT tokens for authentication. Include the token in the Authorization header:
+The API uses AWS Cognito for authentication. Include the Cognito Access Token in the Authorization header:
 
 ```plaintext
-Authorization: Bearer <your_jwt_token>
+Authorization: Bearer <cognito_access_token>
 ```
+
+Authentication is handled via Cognito Hosted UI - no local registration/login endpoints.
 
 ## Error Handling
 
@@ -436,8 +438,8 @@ src/
 
 ## Security Features
 
-- Password hashing with bcrypt
-- JWT token authentication
+- AWS Cognito authentication
+- Cognito Access Token validation
 - Role-based access control
 - Input validation with Zod
 - SQL injection prevention with parameterized queries

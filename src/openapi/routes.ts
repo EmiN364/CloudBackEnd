@@ -59,93 +59,38 @@ openApiApp.openapi(
 );
 
 // Users routes
+// Note: Registration and login are handled by AWS Cognito Hosted UI
+
 openApiApp.openapi(
   {
     method: 'post',
-    path: '/api/users/register',
-    tags: ['Authentication'],
-    summary: 'User Registration',
-    description: 'Register a new user account',
-    request: {
-      body: {
-        content: {
-          'application/json': {
-            schema: CreateUserSchema
-          }
-        }
-      }
-    },
+    path: '/api/users/promote-to-seller',
+    tags: ['Users'],
+    summary: 'Promote to Seller',
+    description: 'Promote authenticated user to seller status',
+    security: [{ bearerAuth: [] }],
     responses: {
-      201: {
-        description: 'User created successfully',
+      200: {
+        description: 'User promoted to seller successfully',
         content: {
           'application/json': {
             schema: z.object({
               message: z.string(),
-              user: UserSchema.omit({ created_at: true, updated_at: true }),
-              token: z.string()
+              user: UserSchema.omit({ created_at: true, updated_at: true })
             })
           }
         }
       },
       400: {
-        description: 'Bad request',
+        description: 'User is already a seller',
         content: {
           'application/json': {
             schema: ErrorSchema
-          }
-        }
-      }
-    }
-  },
-  (c) => c.json({ 
-    message: 'User registered successfully',
-    user: {
-      id: 1,
-      email: 'user@example.com',
-      phone: '+1234567890',
-      first_name: 'John',
-      last_name: 'Doe',
-      is_seller: false,
-      is_active: true,
-      locale: 'en',
-      address: '123 Main St'
-    },
-    token: 'sample_token'
-  })
-);
-
-openApiApp.openapi(
-  {
-    method: 'post',
-    path: '/api/users/login',
-    tags: ['Authentication'],
-    summary: 'User Login',
-    description: 'Authenticate user and get JWT token',
-    request: {
-      body: {
-        content: {
-          'application/json': {
-            schema: LoginSchema
-          }
-        }
-      }
-    },
-    responses: {
-      200: {
-        description: 'Login successful',
-        content: {
-          'application/json': {
-            schema: z.object({
-              message: z.string(),
-              user: UserSchema.omit({ created_at: true, updated_at: true }),
-              token: z.string()
-            })
           }
         }
       },
       401: {
-        description: 'Invalid credentials',
+        description: 'Unauthorized',
         content: {
           'application/json': {
             schema: ErrorSchema
@@ -154,22 +99,22 @@ openApiApp.openapi(
       }
     }
   },
-  (c) => c.json({ 
-    message: 'User logged in successfully',
+  (c) => c.json({
+    message: 'User promoted to seller successfully',
     user: {
       id: 1,
       email: 'user@example.com',
       phone: '+1234567890',
       first_name: 'John',
       last_name: 'Doe',
-      is_seller: false,
+      is_seller: true,
       is_active: true,
       locale: 'en',
       address: '123 Main St'
-    },
-    token: 'sample_token'
+    }
   })
 );
+
 
 // Products routes
 openApiApp.openapi(

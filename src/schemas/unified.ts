@@ -296,7 +296,7 @@ export const openApiConfig = {
       bearerAuth: {
         type: 'http',
         scheme: 'bearer',
-        bearerFormat: 'JWT'
+        bearerFormat: 'Cognito Access Token'
       }
     },
     schemas: {
