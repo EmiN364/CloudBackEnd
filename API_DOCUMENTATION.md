@@ -1,36 +1,29 @@
 # E-commerce API Documentation
 
 ## Overview
-
 This is a comprehensive REST API for e-commerce operations built with Hono.js, TypeScript, and PostgreSQL. The API provides endpoints for user management, product catalog, shopping cart, sales, reviews, notifications, image management with S3 integration, and product likes.
 
 ## Base URL
-
-```text
+```
 Development: http://localhost:3000
 Production: [Your Production URL]
 ```
 
 ## Authentication
+The API uses JWT (JSON Web Token) authentication. Include the token in the Authorization header:
 
-The API uses AWS Cognito for authentication. Include the Cognito Access Token in the Authorization header:
-
-```text
-Authorization: Bearer <cognito_access_token>
 ```
-
-Authentication is handled via Cognito Hosted UI. No local registration/login endpoints are provided.
+Authorization: Bearer <your_jwt_token>
+```
 
 ## API Endpoints
 
 ### 🔐 Authentication
 
 #### POST `/api/users/register`
-
 Register a new user account.
 
 **Request Body:**
-
 ```json
 {
   "email": "user@example.com",
@@ -42,7 +35,6 @@ Register a new user account.
 ```
 
 **Response (201):**
-
 ```json
 {
   "message": "User registered successfully",
@@ -58,12 +50,10 @@ Register a new user account.
 }
 ```
 
-#### Authentication via Cognito
-
-Authentication is handled by AWS Cognito Hosted UI. No local login endpoint.
+#### POST `/api/users/login`
+Authenticate user and get JWT token.
 
 **Request Body:**
-
 ```json
 {
   "email": "user@example.com",
@@ -72,7 +62,6 @@ Authentication is handled by AWS Cognito Hosted UI. No local login endpoint.
 ```
 
 **Response (200):**
-
 ```json
 {
   "message": "Login successful",
@@ -91,11 +80,9 @@ Authentication is handled by AWS Cognito Hosted UI. No local login endpoint.
 ### 👤 Users
 
 #### GET `/api/users/me`
-
 Get current user profile (requires authentication).
 
 **Response (200):**
-
 ```json
 {
   "user": {
@@ -112,11 +99,9 @@ Get current user profile (requires authentication).
 ```
 
 #### PUT `/api/users/me`
-
 Update current user profile (requires authentication).
 
 **Request Body:**
-
 ```json
 {
   "first_name": "Jane",
@@ -125,27 +110,22 @@ Update current user profile (requires authentication).
 ```
 
 #### DELETE `/api/users/me`
-
 Delete current user account (requires authentication).
 
 #### GET `/api/users/:id`
-
 Get public user information by ID.
 
 ### 🏪 Stores
 
 #### GET `/api/stores`
-
 Get paginated list of stores.
 
 **Query Parameters:**
-
 - `page` (optional): Page number (default: 1)
 - `limit` (optional): Items per page (default: 20)
 - `search` (optional): Search term for store name/description
 
 **Response (200):**
-
 ```json
 {
   "stores": [
@@ -170,11 +150,9 @@ Get paginated list of stores.
 ```
 
 #### POST `/api/stores`
-
 Create a new store (requires seller authentication).
 
 **Request Body:**
-
 ```json
 {
   "name": "My Store",
@@ -183,25 +161,20 @@ Create a new store (requires seller authentication).
 ```
 
 #### GET `/api/stores/me`
-
 Get current user's store with statistics (requires seller authentication).
 
 #### PUT `/api/stores/:id`
-
 Update store (requires seller authentication).
 
 #### DELETE `/api/stores/:id`
-
 Delete store (requires seller authentication).
 
 ### 📦 Products
 
 #### GET `/api/products`
-
 Get paginated list of products with filtering.
 
 **Query Parameters:**
-
 - `page` (optional): Page number (default: 1)
 - `limit` (optional): Items per page (default: 20)
 - `search` (optional): Search term for product name/description
@@ -210,7 +183,6 @@ Get paginated list of products with filtering.
 - `store_id` (optional): Filter by store ID
 
 **Response (200):**
-
 ```json
 {
   "products": [
@@ -238,15 +210,12 @@ Get paginated list of products with filtering.
 ```
 
 #### GET `/api/products/:id`
-
 Get product details with reviews.
 
 #### POST `/api/products`
-
 Create a new product (requires seller authentication).
 
 **Request Body:**
-
 ```json
 {
   "name": "Product Name",
@@ -258,29 +227,23 @@ Create a new product (requires seller authentication).
 ```
 
 #### PUT `/api/products/:id`
-
 Update product (requires seller authentication).
 
 #### DELETE `/api/products/:id`
-
 Soft delete product (requires seller authentication).
 
 #### PATCH `/api/products/:id/pause`
-
 Pause/unpause product (requires seller authentication).
 
 #### GET `/api/products/seller/me`
-
 Get seller's own products (requires seller authentication).
 
 ### 🛒 Shopping Cart
 
 #### GET `/api/cart`
-
 Get user's shopping cart (requires authentication).
 
 **Response (200):**
-
 ```json
 {
   "cart": [
@@ -300,11 +263,9 @@ Get user's shopping cart (requires authentication).
 ```
 
 #### POST `/api/cart`
-
 Add product to cart (requires authentication).
 
 **Request Body:**
-
 ```json
 {
   "product_id": 1,
@@ -313,11 +274,9 @@ Add product to cart (requires authentication).
 ```
 
 #### PUT `/api/cart/:productId`
-
 Update product amount in cart (requires authentication).
 
 **Request Body:**
-
 ```json
 {
   "amount": 3
@@ -325,31 +284,25 @@ Update product amount in cart (requires authentication).
 ```
 
 #### DELETE `/api/cart/:productId`
-
 Remove product from cart (requires authentication).
 
 #### DELETE `/api/cart`
-
 Clear entire cart (requires authentication).
 
 #### GET `/api/cart/summary`
-
 Get cart summary (requires authentication).
 
 ### 💰 Sales & Orders
 
 #### GET `/api/sales`
-
 Get user's sales history (requires authentication).
 
 **Query Parameters:**
-
 - `page` (optional): Page number (default: 1)
 - `limit` (optional): Items per page (default: 20)
 - `status` (optional): Filter by status
 
 **Response (200):**
-
 ```json
 {
   "sales": [
@@ -373,11 +326,9 @@ Get user's sales history (requires authentication).
 ```
 
 #### POST `/api/sales`
-
 Create a new sale (checkout process, requires authentication).
 
 **Request Body:**
-
 ```json
 {
   "cart_product_ids": [1, 2, 3]
@@ -385,15 +336,12 @@ Create a new sale (checkout process, requires authentication).
 ```
 
 #### GET `/api/sales/:id`
-
 Get specific sale details (requires authentication).
 
 #### PUT `/api/sales/:id`
-
 Update sale status (requires authentication).
 
 **Request Body:**
-
 ```json
 {
   "status": "shipped"
@@ -401,34 +349,27 @@ Update sale status (requires authentication).
 ```
 
 #### GET `/api/sales/statistics`
-
 Get sales statistics (requires authentication).
 
 #### DELETE `/api/sales/:id`
-
 Cancel sale (requires authentication).
 
 ### ⭐ Reviews
 
 #### GET `/api/reviews/product/:productId`
-
 Get reviews for a specific product.
 
 **Query Parameters:**
-
 - `page` (optional): Page number (default: 1)
 - `limit` (optional): Items per page (default: 20)
 
 #### GET `/api/reviews/user/me`
-
 Get user's own reviews (requires authentication).
 
 #### POST `/api/reviews`
-
 Create a product review (requires authentication, must have purchased the product).
 
 **Request Body:**
-
 ```json
 {
   "product_id": 1,
@@ -438,27 +379,22 @@ Create a product review (requires authentication, must have purchased the produc
 ```
 
 #### PUT `/api/reviews/:id`
-
 Update review (requires authentication).
 
 #### DELETE `/api/reviews/:id`
-
 Delete review (requires authentication).
 
 ### 🔔 Notifications
 
 #### GET `/api/notifications`
-
 Get user notifications (requires authentication).
 
 **Query Parameters:**
-
 - `page` (optional): Page number (default: 1)
 - `limit` (optional): Items per page (default: 20)
 - `unread_only` (optional): Filter unread notifications only
 
 **Response (200):**
-
 ```json
 {
   "notifications": [
@@ -482,38 +418,30 @@ Get user notifications (requires authentication).
 ```
 
 #### GET `/api/notifications/:id`
-
 Get specific notification and mark as read (requires authentication).
 
 #### PUT `/api/notifications/:id`
-
 Update notification (requires authentication).
 
 #### PATCH `/api/notifications/read-all`
-
 Mark all notifications as read (requires authentication).
 
 #### DELETE `/api/notifications/:id`
-
 Delete notification (requires authentication).
 
 #### DELETE `/api/notifications/read`
-
 Delete all read notifications (requires authentication).
 
 ### 🖼️ Image Management
 
 #### POST `/api/images/upload`
-
 Upload single image to S3 (requires authentication).
 
 **Form Data:**
-
 - `image`: File (max 5MB, image files only)
 - `folder` (optional): Folder name (defaults to 'products')
 
 **Response (201):**
-
 ```json
 {
   "message": "Image uploaded successfully",
@@ -528,28 +456,22 @@ Upload single image to S3 (requires authentication).
 ```
 
 #### POST `/api/images/upload-multiple`
-
 Upload multiple images to S3 (requires authentication).
 
 **Form Data:**
-
 - `images`: Files[] (max 10 images, 5MB each)
 - `folder` (optional): Folder name (defaults to 'products')
 
 #### GET `/api/images/:id`
-
 Get image by ID.
 
 #### DELETE `/api/images/:id`
-
 Delete image from S3 and database (requires authentication).
 
 #### POST `/api/images/presigned-url`
-
 Generate presigned URL for direct S3 upload (requires authentication).
 
 **Request Body:**
-
 ```json
 {
   "filename": "image.jpg",
@@ -559,7 +481,6 @@ Generate presigned URL for direct S3 upload (requires authentication).
 ```
 
 **Response (200):**
-
 ```json
 {
   "upload_url": "https://bucket.s3.region.amazonaws.com/products/...",
@@ -569,21 +490,17 @@ Generate presigned URL for direct S3 upload (requires authentication).
 ```
 
 #### GET `/api/images/folder/:folder`
-
 Get images by folder with pagination.
 
 ### ❤️ Product Likes
 
 #### GET `/api/likes/user/me`
-
 Get user's liked products (requires authentication).
 
 #### POST `/api/likes`
-
 Like a product (requires authentication).
 
 **Request Body:**
-
 ```json
 {
   "product_id": 1
@@ -591,19 +508,15 @@ Like a product (requires authentication).
 ```
 
 #### DELETE `/api/likes/:productId`
-
 Unlike a product (requires authentication).
 
 #### POST `/api/likes/toggle/:productId`
-
 Toggle like status (requires authentication).
 
 #### GET `/api/likes/product/:productId/count`
-
 Get product like count.
 
 #### GET `/api/likes/product/:productId/users`
-
 Get users who liked a product.
 
 ## Error Handling
@@ -611,7 +524,6 @@ Get users who liked a product.
 All endpoints return consistent error responses:
 
 ### 400 Bad Request
-
 ```json
 {
   "error": "Validation error message"
@@ -619,7 +531,6 @@ All endpoints return consistent error responses:
 ```
 
 ### 401 Unauthorized
-
 ```json
 {
   "error": "Access token required"
@@ -627,7 +538,6 @@ All endpoints return consistent error responses:
 ```
 
 ### 403 Forbidden
-
 ```json
 {
   "error": "Seller access required"
@@ -635,7 +545,6 @@ All endpoints return consistent error responses:
 ```
 
 ### 404 Not Found
-
 ```json
 {
   "error": "Resource not found"
@@ -643,7 +552,6 @@ All endpoints return consistent error responses:
 ```
 
 ### 500 Internal Server Error
-
 ```json
 {
   "error": "Internal server error"
@@ -671,13 +579,11 @@ Most list endpoints support pagination with the following response structure:
 ## File Upload
 
 ### Image Upload Limits
-
 - **Single upload**: Max 5MB per image
 - **Multiple upload**: Max 10 images, 5MB each
 - **Supported formats**: All image types (JPEG, PNG, GIF, etc.)
 
 ### S3 Integration
-
 - Images are automatically uploaded to AWS S3
 - Public read access for uploaded images
 - Organized by folders (products, stores, etc.)
@@ -690,7 +596,6 @@ Currently, no rate limiting is implemented. Consider implementing rate limiting 
 ## CORS
 
 CORS is enabled for the following origins:
-
 - `http://localhost:3000`
 - `http://localhost:3001`
 - `http://localhost:5173`
@@ -698,7 +603,6 @@ CORS is enabled for the following origins:
 ## Development
 
 ### Running the API
-
 ```bash
 # Install dependencies
 pnpm install
@@ -718,7 +622,6 @@ pnpm start
 ```
 
 ### Environment Variables
-
 ```env
 # Database Configuration
 DB_HOST=localhost
@@ -727,9 +630,9 @@ DB_NAME=your_database_name
 DB_USER=your_username
 DB_PASSWORD=your_password
 
-# AWS Cognito Configuration
-COGNITO_USER_POOL_ID=your_cognito_user_pool_id
-COGNITO_CLIENT_ID=your_cognito_client_id
+# JWT Configuration
+JWT_SECRET=your_jwt_secret_key_here
+JWT_EXPIRES_IN=24h
 
 # Server Configuration
 PORT=3000
@@ -745,13 +648,11 @@ AWS_S3_BUCKET=your_s3_bucket_name
 ## Testing
 
 ### Health Check
-
 ```bash
 curl http://localhost:3000/
 ```
 
 ### Authentication Example
-
 ```bash
 # Register
 curl -X POST http://localhost:3000/api/users/register \
@@ -771,7 +672,6 @@ curl -H "Authorization: Bearer <your_token>" \
 ## Support
 
 For API support and questions, contact:
-
 - Email: support@example.com
 - Documentation: Available at `/docs` endpoint when running
 - OpenAPI Spec: Available at `/api/openapi.json`
