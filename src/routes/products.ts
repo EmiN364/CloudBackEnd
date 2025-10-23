@@ -97,15 +97,16 @@ products.get('/:id', async (c) => {
     }
     
     const result = await pool.query(
-      `SELECT p.id, p.name, p.description, p.category, p.price, p.paused,
+      `SELECT p.id, p.name, p.description, p.category, p.price, p.paused, p.image_url,
               u.first_name, u.last_name, u.id as seller_id,
-              s.store_name, s.description as store_description, p.image_url
+              s.store_name, s.description as store_description
        FROM products p
        LEFT JOIN users u ON p.seller_id = u.id
        LEFT JOIN stores s ON p.seller_id = s.store_id
        WHERE p.id = $1 AND p.deleted = false`,
       [productId]
     );
+    console.log(result)
     
     if (result.rows.length === 0) {
       return c.json({ error: 'Product not found' }, 404);
