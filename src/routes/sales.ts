@@ -5,8 +5,144 @@ import { createSaleProductSchema, createSaleSchema, updateSaleSchema } from '../
 
 const sales = new Hono();
 
-// Get user's sales history
+// Get user's purchases (compras del usuario)
+sales.get('/purchases', authMiddleware, async (c) => {
+  try {
+    const user = c.get('user');
+    const page = parseInt(c.req.query('page') || '1');
+    const limit = parseInt(c.req.query('limit') || '20');
+    
+    const offset = (page - 1) * limit;
+    
+    const result = await pool.query(
+      `SELECT s.id, s.date, s.total, s.status, s.note, s.invoice_id, s.address
+       FROM sales s
+       WHERE s.user_id = $1
+       ORDER BY s.date DESC
+       LIMIT $2 OFFSET $3`,
+      [user.id, limit, offset]
+    );
+    
+    // Get total count
+    const countResult = await pool.query(
+      'SELECT COUNT(*) FROM sales WHERE user_id = $1',
+      [user.id]
+    );
+    
+    const total = parseInt(countResult.rows[0].count);
+    const totalPages = Math.ceil(total / limit);
+    
+    // Get products for each sale
+    const salesWithProducts = await Promise.all(
+      result.rows.map(async (sale) => {
+        const productsResult = await pool.query(
+          `SELECT sp.product_id, sp.price, sp.amount,
+                  p.name, p.description,
+                  u.first_name, u.last_name
+           FROM sales_products sp
+           JOIN products p ON sp.product_id = p.id
+           JOIN users u ON p.seller_id = u.id
+           WHERE sp.sale_id = $1`,
+          [sale.id]
+        );
+        
+        return {
+          ...sale,
+          products: productsResult.rows
+        };
+      })
+    );
+    
+    return c.json({
+      purchases: salesWithProducts,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      }
+    });
+  } catch (error) {
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+// Get seller's sales (ventas del vendedor)
+sales.get('/seller', authMiddleware, async (c) => {
+  try {
+    const user = c.get('user');
+    const page = parseInt(c.req.query('page') || '1');
+    const limit = parseInt(c.req.query('limit') || '20');
+    
+    const offset = (page - 1) * limit;
+    
+    // Get sales where the seller's products are included
+    const result = await pool.query(
+      `SELECT DISTINCT s.id, s.date, s.total, s.status, s.note, s.invoice_id, s.address,
+              u.first_name, u.last_name, u.id as buyer_id
+       FROM sales s
+       JOIN sales_products sp ON s.id = sp.sale_id
+       JOIN products p ON sp.product_id = p.id
+       JOIN users u ON s.user_id = u.id
+       WHERE p.seller_id = $1
+       ORDER BY s.date DESC
+       LIMIT $2 OFFSET $3`,
+      [user.id, limit, offset]
+    );
+    
+    // Get total count
+    const countResult = await pool.query(
+      `SELECT COUNT(DISTINCT s.id)
+       FROM sales s
+       JOIN sales_products sp ON s.id = sp.sale_id
+       JOIN products p ON sp.product_id = p.id
+       WHERE p.seller_id = $1`,
+      [user.id]
+    );
+    
+    const total = parseInt(countResult.rows[0].count);
+    const totalPages = Math.ceil(total / limit);
+    
+    // Get products for each sale
+    const salesWithProducts = await Promise.all(
+      result.rows.map(async (sale) => {
+        const productsResult = await pool.query(
+          `SELECT sp.product_id, sp.price, sp.amount,
+                  p.name, p.description, p.seller_id
+           FROM sales_products sp
+           JOIN products p ON sp.product_id = p.id
+           WHERE sp.sale_id = $1 AND p.seller_id = $2`,
+          [sale.id, user.id]
+        );
+        
+        return {
+          ...sale,
+          products: productsResult.rows
+        };
+      })
+    );
+    
+    return c.json({
+      sales: salesWithProducts,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      }
+    });
+  } catch (error) {
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+// Get user's sales history (mantener compatibilidad, ahora usa purchases)
 sales.get('/', authMiddleware, async (c) => {
+  // Usar la misma lógica que purchases para mantener compatibilidad
   try {
     const user = c.get('user');
     const page = parseInt(c.req.query('page') || '1');
@@ -285,7 +421,7 @@ sales.patch('/:id/cancel', authMiddleware, async (c) => {
       return c.json({ error: 'Invalid sale ID' }, 400);
     }
     
-    // Verify sale belongs to user and can be cancelled
+    // Verify sale belongs to user (buyer) and can be cancelled
     const saleCheck = await pool.query(
       'SELECT id, status FROM sales WHERE id = $1 AND user_id = $2',
       [saleId, user.id]
@@ -310,6 +446,276 @@ sales.patch('/:id/cancel', authMiddleware, async (c) => {
     return c.json({
       message: 'Sale cancelled successfully',
       status: 'cancelled'
+    });
+  } catch (error) {
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+// Mark sale as preparing (seller only)
+sales.patch('/:id/prepare', authMiddleware, async (c) => {
+  try {
+    const user = c.get('user');
+    const saleId = parseInt(c.req.param('id'));
+    
+    if (isNaN(saleId)) {
+      return c.json({ error: 'Invalid sale ID' }, 400);
+    }
+    
+    // Verify sale has seller's products
+    const saleCheck = await pool.query(
+      `SELECT s.id, s.status
+       FROM sales s
+       JOIN sales_products sp ON s.id = sp.sale_id
+       JOIN products p ON sp.product_id = p.id
+       WHERE s.id = $1 AND p.seller_id = $2
+       LIMIT 1`,
+      [saleId, user.id]
+    );
+    
+    if (saleCheck.rows.length === 0) {
+      return c.json({ error: 'Sale not found or access denied' }, 404);
+    }
+    
+    await pool.query(
+      'UPDATE sales SET status = $1 WHERE id = $2',
+      ['preparing', saleId]
+    );
+    
+    return c.json({
+      message: 'Sale marked as preparing',
+      status: 'preparing'
+    });
+  } catch (error) {
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+// Mark sale as shipped (seller only)
+sales.patch('/:id/ship', authMiddleware, async (c) => {
+  try {
+    const user = c.get('user');
+    const saleId = parseInt(c.req.param('id'));
+    
+    if (isNaN(saleId)) {
+      return c.json({ error: 'Invalid sale ID' }, 400);
+    }
+    
+    // Verify sale has seller's products
+    const saleCheck = await pool.query(
+      `SELECT s.id, s.status
+       FROM sales s
+       JOIN sales_products sp ON s.id = sp.sale_id
+       JOIN products p ON sp.product_id = p.id
+       WHERE s.id = $1 AND p.seller_id = $2
+       LIMIT 1`,
+      [saleId, user.id]
+    );
+    
+    if (saleCheck.rows.length === 0) {
+      return c.json({ error: 'Sale not found or access denied' }, 404);
+    }
+    
+    await pool.query(
+      'UPDATE sales SET status = $1 WHERE id = $2',
+      ['shipped', saleId]
+    );
+    
+    return c.json({
+      message: 'Sale marked as shipped',
+      status: 'shipped'
+    });
+  } catch (error) {
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+// Mark sale as delivered (seller only)
+sales.patch('/:id/delivery', authMiddleware, async (c) => {
+  try {
+    const user = c.get('user');
+    const saleId = parseInt(c.req.param('id'));
+    
+    if (isNaN(saleId)) {
+      return c.json({ error: 'Invalid sale ID' }, 400);
+    }
+    
+    // Verify sale has seller's products
+    const saleCheck = await pool.query(
+      `SELECT s.id, s.status
+       FROM sales s
+       JOIN sales_products sp ON s.id = sp.sale_id
+       JOIN products p ON sp.product_id = p.id
+       WHERE s.id = $1 AND p.seller_id = $2
+       LIMIT 1`,
+      [saleId, user.id]
+    );
+    
+    if (saleCheck.rows.length === 0) {
+      return c.json({ error: 'Sale not found or access denied' }, 404);
+    }
+    
+    await pool.query(
+      'UPDATE sales SET status = $1 WHERE id = $2',
+      ['delivered', saleId]
+    );
+    
+    return c.json({
+      message: 'Sale marked as delivered',
+      status: 'delivered'
+    });
+  } catch (error) {
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+// Mark sale as received (buyer only)
+sales.patch('/:id/receive', authMiddleware, async (c) => {
+  try {
+    const user = c.get('user');
+    const saleId = parseInt(c.req.param('id'));
+    
+    if (isNaN(saleId)) {
+      return c.json({ error: 'Invalid sale ID' }, 400);
+    }
+    
+    // Verify sale belongs to user (buyer)
+    const saleCheck = await pool.query(
+      'SELECT id, status FROM sales WHERE id = $1 AND user_id = $2',
+      [saleId, user.id]
+    );
+    
+    if (saleCheck.rows.length === 0) {
+      return c.json({ error: 'Sale not found or access denied' }, 404);
+    }
+    
+    await pool.query(
+      'UPDATE sales SET status = $1 WHERE id = $2',
+      ['received', saleId]
+    );
+    
+    return c.json({
+      message: 'Sale marked as received',
+      status: 'received'
+    });
+  } catch (error) {
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+// Upload invoice (buyer only)
+sales.post('/:id/invoice', authMiddleware, async (c) => {
+  try {
+    const user = c.get('user');
+    const saleId = parseInt(c.req.param('id'));
+    
+    if (isNaN(saleId)) {
+      return c.json({ error: 'Invalid sale ID' }, 400);
+    }
+    
+    // Verify sale belongs to user (buyer)
+    const saleCheck = await pool.query(
+      'SELECT id FROM sales WHERE id = $1 AND user_id = $2',
+      [saleId, user.id]
+    );
+    
+    if (saleCheck.rows.length === 0) {
+      return c.json({ error: 'Sale not found or access denied' }, 404);
+    }
+    
+    const body = await c.req.json();
+    const { invoice_id } = body;
+    
+    if (!invoice_id) {
+      return c.json({ error: 'Invoice ID is required' }, 400);
+    }
+    
+    await pool.query(
+      'UPDATE sales SET invoice_id = $1 WHERE id = $2',
+      [invoice_id, saleId]
+    );
+    
+    return c.json({
+      message: 'Invoice uploaded successfully',
+      invoice_id: invoice_id
+    });
+  } catch (error) {
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+// Approve invoice (seller only)
+sales.patch('/:id/approve-invoice', authMiddleware, async (c) => {
+  try {
+    const user = c.get('user');
+    const saleId = parseInt(c.req.param('id'));
+    
+    if (isNaN(saleId)) {
+      return c.json({ error: 'Invalid sale ID' }, 400);
+    }
+    
+    // Verify sale has seller's products
+    const saleCheck = await pool.query(
+      `SELECT s.id, s.status
+       FROM sales s
+       JOIN sales_products sp ON s.id = sp.sale_id
+       JOIN products p ON sp.product_id = p.id
+       WHERE s.id = $1 AND p.seller_id = $2
+       LIMIT 1`,
+      [saleId, user.id]
+    );
+    
+    if (saleCheck.rows.length === 0) {
+      return c.json({ error: 'Sale not found or access denied' }, 404);
+    }
+    
+    await pool.query(
+      'UPDATE sales SET status = $1 WHERE id = $2',
+      ['paid', saleId]
+    );
+    
+    return c.json({
+      message: 'Invoice approved successfully',
+      status: 'paid'
+    });
+  } catch (error) {
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+// Reject invoice (seller only)
+sales.patch('/:id/reject-invoice', authMiddleware, async (c) => {
+  try {
+    const user = c.get('user');
+    const saleId = parseInt(c.req.param('id'));
+    
+    if (isNaN(saleId)) {
+      return c.json({ error: 'Invalid sale ID' }, 400);
+    }
+    
+    // Verify sale has seller's products
+    const saleCheck = await pool.query(
+      `SELECT s.id, s.status
+       FROM sales s
+       JOIN sales_products sp ON s.id = sp.sale_id
+       JOIN products p ON sp.product_id = p.id
+       WHERE s.id = $1 AND p.seller_id = $2
+       LIMIT 1`,
+      [saleId, user.id]
+    );
+    
+    if (saleCheck.rows.length === 0) {
+      return c.json({ error: 'Sale not found or access denied' }, 404);
+    }
+    
+    await pool.query(
+      'UPDATE sales SET status = $1 WHERE id = $2',
+      ['rejected', saleId]
+    );
+    
+    return c.json({
+      message: 'Invoice rejected',
+      status: 'rejected'
     });
   } catch (error) {
     return c.json({ error: 'Internal server error' }, 500);

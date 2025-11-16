@@ -226,4 +226,188 @@ cart.get('/summary', authMiddleware, async (c) => {
   }
 });
 
+// Increase product amount in cart
+cart.post('/increase', authMiddleware, async (c) => {
+  try {
+    const user = c.get('user');
+    const body = await c.req.json();
+    const { product_id } = body;
+    
+    if (!product_id) {
+      return c.json({ error: 'Product ID is required' }, 400);
+    }
+    
+    const productId = parseInt(product_id);
+    if (isNaN(productId)) {
+      return c.json({ error: 'Invalid product ID' }, 400);
+    }
+    
+    // Check if product exists in cart
+    const cartItemCheck = await pool.query(
+      'SELECT amount FROM cart_products WHERE user_id = $1 AND product_id = $2',
+      [user.id, productId]
+    );
+    
+    if (cartItemCheck.rows.length === 0) {
+      return c.json({ error: 'Product not found in cart' }, 404);
+    }
+    
+    const newAmount = cartItemCheck.rows[0].amount + 1;
+    
+    await pool.query(
+      'UPDATE cart_products SET amount = $1 WHERE user_id = $2 AND product_id = $3',
+      [newAmount, user.id, productId]
+    );
+    
+    return c.json({
+      message: 'Product amount increased',
+      amount: newAmount
+    });
+  } catch (error) {
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+// Decrease product amount in cart
+cart.post('/decrease', authMiddleware, async (c) => {
+  try {
+    const user = c.get('user');
+    const body = await c.req.json();
+    const { product_id } = body;
+    
+    if (!product_id) {
+      return c.json({ error: 'Product ID is required' }, 400);
+    }
+    
+    const productId = parseInt(product_id);
+    if (isNaN(productId)) {
+      return c.json({ error: 'Invalid product ID' }, 400);
+    }
+    
+    // Check if product exists in cart
+    const cartItemCheck = await pool.query(
+      'SELECT amount FROM cart_products WHERE user_id = $1 AND product_id = $2',
+      [user.id, productId]
+    );
+    
+    if (cartItemCheck.rows.length === 0) {
+      return c.json({ error: 'Product not found in cart' }, 404);
+    }
+    
+    const currentAmount = cartItemCheck.rows[0].amount;
+    
+    if (currentAmount <= 1) {
+      // Remove from cart if amount is 1
+      await pool.query(
+        'DELETE FROM cart_products WHERE user_id = $1 AND product_id = $2',
+        [user.id, productId]
+      );
+      
+      return c.json({
+        message: 'Product removed from cart',
+        amount: 0
+      });
+    }
+    
+    const newAmount = currentAmount - 1;
+    
+    await pool.query(
+      'UPDATE cart_products SET amount = $1 WHERE user_id = $2 AND product_id = $3',
+      [newAmount, user.id, productId]
+    );
+    
+    return c.json({
+      message: 'Product amount decreased',
+      amount: newAmount
+    });
+  } catch (error) {
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+// Buy cart (checkout)
+cart.post('/buy', authMiddleware, async (c) => {
+  try {
+    const user = c.get('user');
+    const body = await c.req.json();
+    const { note, address } = body;
+    
+    // Get user's cart
+    const cartResult = await pool.query(
+      `SELECT cp.product_id, cp.amount, p.price, p.name, p.seller_id
+       FROM cart_products cp
+       JOIN products p ON cp.product_id = p.id
+       WHERE cp.user_id = $1 AND p.deleted = false AND p.paused = false`,
+      [user.id]
+    );
+    
+    if (cartResult.rows.length === 0) {
+      return c.json({ error: 'Cart is empty' }, 400);
+    }
+    
+    // Calculate total
+    let total = 0;
+    cartResult.rows.forEach(item => {
+      total += item.price * item.amount;
+    });
+    
+    // Start transaction
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+      
+      // Create sale
+      const saleResult = await client.query(
+        `INSERT INTO sales (user_id, total, status, note, address)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id`,
+        [
+          user.id,
+          total,
+          'pending',
+          note || null,
+          address || ''
+        ]
+      );
+      
+      const saleId = saleResult.rows[0].id;
+      
+      // Create sale products
+      for (const item of cartResult.rows) {
+        await client.query(
+          'INSERT INTO sales_products (sale_id, product_id, price, amount) VALUES ($1, $2, $3, $4)',
+          [saleId, item.product_id, item.price, item.amount]
+        );
+      }
+      
+      // Clear cart
+      await client.query(
+        'DELETE FROM cart_products WHERE user_id = $1',
+        [user.id]
+      );
+      
+      await client.query('COMMIT');
+      
+      return c.json({
+        message: 'Purchase completed successfully',
+        sale_id: saleId,
+        total: total
+      }, 201);
+      
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+    
+  } catch (error) {
+    if (error instanceof Error) {
+      return c.json({ error: error.message }, 400);
+    }
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
 export default cart;
