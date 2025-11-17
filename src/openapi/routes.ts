@@ -1,707 +1,741 @@
-import { OpenAPIHono } from '@hono/zod-openapi';
-import { z } from 'zod';
+import { OpenAPIHono } from "@hono/zod-openapi";
+import { z } from "zod";
 import {
-  CartProductSchema,
-  CreateCartProductSchema,
-  CreateNotificationSchema,
-  CreateProductLikeSchema,
-  CreateProductSchema,
-  CreateReviewSchema,
-  CreateSaleSchema,
-  CreateStoreSchema,
-  CreateUserSchema,
-  ErrorSchema,
-  LoginSchema,
-  NotificationSchema,
-  PaginationSchema,
-  ProductSchema,
-  ReviewSchema,
-  SaleSchema,
-  StoreSchema,
-  UploadedImageSchema,
-  UserSchema
-} from '../schemas/unified.js';
-import { openApiConfig } from './spec.js';
+  createProductSchema,
+  productsListResponseSchema,
+  productResponseSchema,
+  productCreationResponseSchema,
+} from "../schemas/product.schema.js";
+import {
+  toggleFavoriteSchema,
+  toggleFavoriteResponseSchema,
+} from "../schemas/favorite.schema.js";
+import {
+  createReviewSchema,
+  paginatedReviewsResponseSchema,
+  reviewsQuerySchema,
+} from "../schemas/review.schema.js";
+import {
+  createSaleSchema,
+  saleCreationResponseSchema,
+  salesListResponseSchema,
+  saleWithProductsResponseSchema,
+} from "../schemas/sale.schema.js";
+import { userProfileResponseSchema } from "../schemas/user.schema.js";
 
 // Create OpenAPI app
 export const openApiApp = new OpenAPIHono();
 
+// Error schema for responses
+const ErrorSchema = z.object({
+  error: z.string(),
+});
+
 // Health check
 openApiApp.openapi(
   {
-    method: 'get',
-    path: '/',
-    tags: ['Health'],
-    summary: 'Health Check',
-    description: 'Check if the API is running',
+    method: "get",
+    path: "/",
+    tags: ["Health"],
+    summary: "Health Check",
+    description: "Check if the API is running",
     responses: {
       200: {
-        description: 'API is running',
+        description: "API is running",
         content: {
-          'application/json': {
+          "application/json": {
             schema: z.object({
               message: z.string(),
               version: z.string(),
-              timestamp: z.string()
-            })
-          }
-        }
-      }
-    }
+              timestamp: z.string(),
+            }),
+          },
+        },
+      },
+    },
   },
   (c) => {
     return c.json({
-      message: 'E-commerce API is running',
-      version: '1.0.0',
-      timestamp: new Date().toISOString()
+      message: "E-commerce API is running",
+      version: "1.0.0",
+      timestamp: new Date().toISOString(),
     });
-  }
+  },
 );
 
 // Users routes
 openApiApp.openapi(
   {
-    method: 'post',
-    path: '/api/users/register',
-    tags: ['Authentication'],
-    summary: 'User Registration',
-    description: 'Register a new user account',
-    request: {
-      body: {
-        content: {
-          'application/json': {
-            schema: CreateUserSchema
-          }
-        }
-      }
-    },
-    responses: {
-      201: {
-        description: 'User created successfully',
-        content: {
-          'application/json': {
-            schema: z.object({
-              message: z.string(),
-              user: UserSchema.omit({ created_at: true, updated_at: true }),
-              token: z.string()
-            })
-          }
-        }
-      },
-      400: {
-        description: 'Bad request',
-        content: {
-          'application/json': {
-            schema: ErrorSchema
-          }
-        }
-      }
-    }
-  },
-  (c) => c.json({ 
-    message: 'User registered successfully',
-    user: {
-      id: 1,
-      email: 'user@example.com',
-      phone: '+1234567890',
-      first_name: 'John',
-      last_name: 'Doe',
-      is_seller: false,
-      is_active: true,
-      locale: 'en',
-      address: '123 Main St'
-    },
-    token: 'sample_token'
-  })
-);
-
-openApiApp.openapi(
-  {
-    method: 'post',
-    path: '/api/users/login',
-    tags: ['Authentication'],
-    summary: 'User Login',
-    description: 'Authenticate user and get JWT token',
-    request: {
-      body: {
-        content: {
-          'application/json': {
-            schema: LoginSchema
-          }
-        }
-      }
-    },
+    method: "get",
+    path: "/api/users/profile",
+    tags: ["Users"],
+    summary: "Get User Profile",
+    description: "Get the current user profile information",
+    security: [{ bearerAuth: [] }],
     responses: {
       200: {
-        description: 'Login successful',
+        description: "User profile retrieved successfully",
         content: {
-          'application/json': {
-            schema: z.object({
-              message: z.string(),
-              user: UserSchema.omit({ created_at: true, updated_at: true }),
-              token: z.string()
-            })
-          }
-        }
+          "application/json": {
+            schema: userProfileResponseSchema,
+          },
+        },
       },
       401: {
-        description: 'Invalid credentials',
+        description: "Unauthorized",
         content: {
-          'application/json': {
-            schema: ErrorSchema
-          }
-        }
-      }
-    }
-  },
-  (c) => c.json({ 
-    message: 'User logged in successfully',
-    user: {
-      id: 1,
-      email: 'user@example.com',
-      phone: '+1234567890',
-      first_name: 'John',
-      last_name: 'Doe',
-      is_seller: false,
-      is_active: true,
-      locale: 'en',
-      address: '123 Main St'
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
     },
-    token: 'sample_token'
-  })
+  },
+  (c) =>
+    c.json({
+      user: {
+        id: 1,
+        cognito_sub: "sample-cognito-sub",
+        email: "user@example.com",
+        email_verified: true,
+        phone_number: "+1234567890",
+        given_name: "John",
+        family_name: "Doe",
+        username: "johndoe",
+        cognito_username: "johndoe",
+        is_seller: false,
+        deleted: false,
+        address: "123 Main St",
+      },
+    }),
 );
 
 // Products routes
 openApiApp.openapi(
   {
-    method: 'get',
-    path: '/api/products',
-    tags: ['Products'],
-    summary: 'Get Products',
-    description: 'Get paginated list of products with optional filtering',
+    method: "get",
+    path: "/api/products",
+    tags: ["Products"],
+    summary: "Get Products",
+    description: "Get paginated list of products with optional filtering",
     request: {
       query: z.object({
         page: z.string().optional(),
         limit: z.string().optional(),
+        category: z.string().optional(),
         search: z.string().optional(),
-        min_price: z.string().optional(),
-        max_price: z.string().optional(),
-        store_id: z.string().optional()
-      })
+        seller_id: z.string().optional(),
+        liked: z.string().optional(),
+      }),
     },
     responses: {
       200: {
-        description: 'Products retrieved successfully',
+        description: "Products retrieved successfully",
         content: {
-          'application/json': {
-            schema: z.object({
-              products: z.array(ProductSchema.omit({ created_at: true, updated_at: true })),
-              pagination: PaginationSchema
-            })
-          }
-        }
-      }
-    }
-  },
-  (c) => c.json({
-    products: [
-      {
-        id: 1,
-        name: 'Sample Product',
-        description: 'A sample product description',
-        category: 'Electronics',
-        price: 29.99,
-        stock: 100,
-        store_id: 1,
-        image_url: 'https://example.com/image.jpg',
-        paused: false,
-        is_active: true
-      }
-    ],
-    pagination: {
-      page: 1,
-      limit: 10,
-      total: 1,
-      totalPages: 1,
-      hasNext: false,
-      hasPrev: false
-    }
-  })
-);
-
-openApiApp.openapi(
-  {
-    method: 'post',
-    path: '/api/products',
-    tags: ['Products'],
-    summary: 'Create Product',
-    description: 'Create a new product (seller only)',
-    security: [{ bearerAuth: [] }],
-    request: {
-      body: {
+          "application/json": {
+            schema: productsListResponseSchema,
+          },
+        },
+      },
+      401: {
+        description:
+          "Unauthorized (when liked filter is used without authentication)",
         content: {
-          'application/json': {
-            schema: CreateProductSchema
-          }
-        }
-      }
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
     },
-    responses: {
-      201: {
-        description: 'Product created successfully',
-        content: {
-          'application/json': {
-            schema: z.object({
-              message: z.string(),
-              product: ProductSchema.omit({ created_at: true, updated_at: true })
-            })
-          }
-        }
-      },
-      401: {
-        description: 'Unauthorized',
-        content: {
-          'application/json': {
-            schema: ErrorSchema
-          }
-        }
-      },
-      403: {
-        description: 'Forbidden - Seller access required',
-        content: {
-          'application/json': {
-            schema: ErrorSchema
-          }
-        }
-      }
-    }
   },
-  (c) => c.json({
-    message: 'Product created successfully',
-    product: {
-      id: 1,
-      name: 'Sample Product',
-      description: 'A sample product description',
-      category: 'Electronics',
-      price: 29.99,
-      stock: 100,
-      store_id: 1,
-      image_url: 'https://example.com/image.jpg',
-      paused: false,
-      is_active: true
-    }
-  })
-);
-
-// Cart routes
-openApiApp.openapi(
-  {
-    method: 'get',
-    path: '/api/cart',
-    tags: ['Cart'],
-    summary: 'Get User Cart',
-    description: 'Get the current user\'s shopping cart',
-    security: [{ bearerAuth: [] }],
-    responses: {
-      200: {
-        description: 'Cart retrieved successfully',
-        content: {
-          'application/json': {
-            schema: z.object({
-              cart: z.array(z.object({
-                id: z.number(),
-                product_id: z.number(),
-                amount: z.number(),
-                product: z.object({
-                  name: z.string(),
-                  price: z.number(),
-                  stock: z.number()
-                })
-              })),
-              total: z.number()
-            })
-          }
-        }
-      },
-      401: {
-        description: 'Unauthorized',
-        content: {
-          'application/json': {
-            schema: ErrorSchema
-          }
-        }
-      }
-    }
-  },
-  (c) => c.json({
-    cart: [
-      {
-        id: 1,
-        product_id: 1,
-        amount: 2,
-        product: {
-          name: 'Sample Product',
+  (c) =>
+    c.json({
+      products: [
+        {
+          id: 1,
+          name: "Sample Product",
+          description: "A sample product description",
+          category: "Electronics",
           price: 29.99,
-          stock: 100
-        }
-      }
-    ],
-    total: 59.98
-  })
+          paused: false,
+          image_url: "https://example.com/image.jpg",
+          seller_id: 1,
+          rating: 4.5,
+          ratingCount: 10,
+          is_favorite: false,
+        },
+      ],
+      pagination: {
+        page: 1,
+        limit: 20,
+        total: 1,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false,
+      },
+    }),
 );
 
-// Images routes
 openApiApp.openapi(
   {
-    method: 'post',
-    path: '/api/images/upload',
-    tags: ['Images'],
-    summary: 'Upload Image',
-    description: 'Upload a single image to S3',
+    method: "get",
+    path: "/api/products/{id}",
+    tags: ["Products"],
+    summary: "Get Product by ID",
+    description: "Get a specific product by its ID",
+    request: {
+      params: z.object({
+        id: z.string(),
+      }),
+    },
+    responses: {
+      200: {
+        description: "Product retrieved successfully",
+        content: {
+          "application/json": {
+            schema: z.object({
+              product: productResponseSchema,
+            }),
+          },
+        },
+      },
+      400: {
+        description: "Invalid product ID",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+      404: {
+        description: "Product not found",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+    },
+  },
+  (c) =>
+    c.json({
+      product: {
+        id: 1,
+        name: "Sample Product",
+        description: "A sample product description",
+        category: "Electronics",
+        price: 29.99,
+        paused: false,
+        image_url: "https://example.com/image.jpg",
+        seller_id: 1,
+        rating: 4.5,
+        ratingCount: 10,
+        is_favorite: false,
+      },
+    }),
+);
+
+openApiApp.openapi(
+  {
+    method: "post",
+    path: "/api/products",
+    tags: ["Products"],
+    summary: "Create Product",
+    description: "Create a new product (requires authentication)",
     security: [{ bearerAuth: [] }],
     request: {
       body: {
         content: {
-          'multipart/form-data': {
-            schema: z.object({
-              image: z.any(),
-              folder: z.string().optional()
-            })
-          }
-        }
-      }
+          "application/json": {
+            schema: createProductSchema,
+          },
+        },
+      },
     },
     responses: {
       201: {
-        description: 'Image uploaded successfully',
+        description: "Product created successfully",
         content: {
-          'application/json': {
-            schema: z.object({
-              message: z.string(),
-              image: UploadedImageSchema
-            })
-          }
-        }
+          "application/json": {
+            schema: productCreationResponseSchema,
+          },
+        },
       },
       400: {
-        description: 'Bad request',
+        description: "Bad request",
         content: {
-          'application/json': {
-            schema: ErrorSchema
-          }
-        }
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
       },
       401: {
-        description: 'Unauthorized',
+        description: "Unauthorized",
         content: {
-          'application/json': {
-            schema: ErrorSchema
-          }
-        }
-      }
-    }
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+      404: {
+        description: "User not found",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+    },
   },
-  (c) => c.json({
-    message: 'Image uploaded successfully',
-    image: {
-      id: 1,
-      key: 'products/sample-image.jpg',
-      url: 'https://example-bucket.s3.amazonaws.com/products/sample-image.jpg',
-      size: 1024,
-      mimetype: 'image/jpeg'
-    }
-  })
+  (c) =>
+    c.json({
+      message: "Product created successfully",
+      product: {
+        id: 1,
+        name: "Sample Product",
+        description: "A sample product description",
+        category: "Electronics",
+        price: 29.99,
+        seller_id: 1,
+        image_url: "https://example.com/image.jpg",
+      },
+    }),
 );
 
-// Sales routes
+// Favorites routes
 openApiApp.openapi(
   {
-    method: 'post',
-    path: '/api/sales',
-    tags: ['Sales'],
-    summary: 'Create Sale',
-    description: 'Create a new sale from cart items',
+    method: "post",
+    path: "/api/favorites/toggle",
+    tags: ["Favorites"],
+    summary: "Toggle Product Favorite",
+    description: "Add or remove a product from user favorites",
     security: [{ bearerAuth: [] }],
     request: {
       body: {
         content: {
-          'application/json': {
-            schema: CreateSaleSchema
-          }
-        }
-      }
+          "application/json": {
+            schema: toggleFavoriteSchema,
+          },
+        },
+      },
     },
     responses: {
-      201: {
-        description: 'Sale created successfully',
+      200: {
+        description: "Favorite status toggled successfully",
         content: {
-          'application/json': {
-            schema: z.object({
-              message: z.string(),
-              sale: SaleSchema.omit({ created_at: true, updated_at: true, user_id: true })
-            })
-          }
-        }
+          "application/json": {
+            schema: toggleFavoriteResponseSchema,
+          },
+        },
       },
       400: {
-        description: 'Bad request',
+        description: "Bad request",
         content: {
-          'application/json': {
-            schema: ErrorSchema
-          }
-        }
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
       },
       401: {
-        description: 'Unauthorized',
+        description: "Unauthorized",
         content: {
-          'application/json': {
-            schema: ErrorSchema
-          }
-        }
-      }
-    }
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+      404: {
+        description: "User or product not found",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+    },
   },
-  (c) => c.json({
-    message: 'Sale created successfully',
-    sale: {
-      id: 1,
-      total: 59.98,
-      status: 'pending' as const,
-      note: 'Sample sale',
-      invoice_id: 1,
-      address: '123 Main St'
-    }
-  })
+  (c) =>
+    c.json({
+      message: "Product added to favorites",
+      is_favorite: true,
+    }),
 );
 
 // Reviews routes
 openApiApp.openapi(
   {
-    method: 'post',
-    path: '/api/reviews',
-    tags: ['Reviews'],
-    summary: 'Create Review',
-    description: 'Create a product review',
-    security: [{ bearerAuth: [] }],
+    method: "get",
+    path: "/api/reviews",
+    tags: ["Reviews"],
+    summary: "Get Product Reviews",
+    description: "Get paginated reviews for a specific product",
     request: {
-      body: {
-        content: {
-          'application/json': {
-            schema: CreateReviewSchema
-          }
-        }
-      }
+      query: reviewsQuerySchema.omit({ product_id: true }).extend({
+        product_id: z.string(),
+        page: z.string().optional(),
+        limit: z.string().optional(),
+      }),
     },
     responses: {
-      201: {
-        description: 'Review created successfully',
+      200: {
+        description: "Reviews retrieved successfully",
         content: {
-          'application/json': {
-            schema: z.object({
-              message: z.string(),
-              review: ReviewSchema.omit({ created_at: true, updated_at: true, user_id: true })
-            })
-          }
-        }
+          "application/json": {
+            schema: paginatedReviewsResponseSchema,
+          },
+        },
       },
       400: {
-        description: 'Bad request',
+        description: "Invalid query parameters",
         content: {
-          'application/json': {
-            schema: ErrorSchema
-          }
-        }
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
       },
-      401: {
-        description: 'Unauthorized',
+      404: {
+        description: "Product not found",
         content: {
-          'application/json': {
-            schema: ErrorSchema
-          }
-        }
-      }
-    }
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+    },
   },
-  (c) => c.json({
-    message: 'Review created successfully',
-    review: {
-      id: 1,
-      product_id: 1,
-      rating: 5,
-      description: 'Great product!'
-    }
-  })
+  (c) =>
+    c.json({
+      reviews: [
+        {
+          id: 1,
+          description: "Great product!",
+          rating: 5,
+          timestamp: new Date().toISOString(),
+          given_name: "John",
+          family_name: "Doe",
+        },
+      ],
+      pagination: {
+        page: 1,
+        limit: 10,
+        total: 1,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false,
+      },
+    }),
 );
 
-// Stores routes
 openApiApp.openapi(
   {
-    method: 'post',
-    path: '/api/stores',
-    tags: ['Stores'],
-    summary: 'Create Store',
-    description: 'Create a new store (seller only)',
+    method: "post",
+    path: "/api/reviews",
+    tags: ["Reviews"],
+    summary: "Create Review",
+    description: "Create a product review (requires authentication)",
     security: [{ bearerAuth: [] }],
     request: {
       body: {
         content: {
-          'application/json': {
-            schema: CreateStoreSchema
-          }
-        }
-      }
+          "application/json": {
+            schema: createReviewSchema,
+          },
+        },
+      },
     },
     responses: {
       201: {
-        description: 'Store created successfully',
+        description: "Review created successfully",
         content: {
-          'application/json': {
+          "application/json": {
             schema: z.object({
               message: z.string(),
-              store: StoreSchema.omit({ created_at: true, updated_at: true })
-            })
-          }
-        }
+              review: z.object({
+                id: z.number(),
+                description: z.string().nullable(),
+                rating: z.number(),
+                product_id: z.number(),
+                user_id: z.number(),
+                timestamp: z.string(),
+              }),
+            }),
+          },
+        },
+      },
+      400: {
+        description: "Bad request or user already reviewed this product",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
       },
       401: {
-        description: 'Unauthorized',
+        description: "Unauthorized",
         content: {
-          'application/json': {
-            schema: ErrorSchema
-          }
-        }
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
       },
-      403: {
-        description: 'Forbidden - Seller access required',
+      404: {
+        description: "User or product not found",
         content: {
-          'application/json': {
-            schema: ErrorSchema
-          }
-        }
-      }
-    }
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+    },
   },
-  (c) => c.json({
-    message: 'Store created successfully',
-    store: {
-      id: 1,
-      store_name: 'Sample Store',
-      description: 'A sample store description',
-      user_id: 1,
-      store_image_url: 'https://example.com/image.jpg',
-      cover_image_url: 'https://example.com/image.jpg',
-      cbu: '1234567890123456789012'
-    }
-  })
+  (c) =>
+    c.json({
+      message: "Review created successfully",
+      review: {
+        id: 1,
+        description: "Great product!",
+        rating: 5,
+        product_id: 1,
+        user_id: 1,
+        timestamp: new Date().toISOString(),
+      },
+    }),
 );
 
-// Notifications routes
+// Sales routes
 openApiApp.openapi(
   {
-    method: 'get',
-    path: '/api/notifications',
-    tags: ['Notifications'],
-    summary: 'Get User Notifications',
-    description: 'Get user notifications with optional filters',
+    method: "post",
+    path: "/api/sales",
+    tags: ["Sales"],
+    summary: "Create Sale",
+    description: "Create a new sale with products (requires authentication)",
+    security: [{ bearerAuth: [] }],
+    request: {
+      body: {
+        content: {
+          "application/json": {
+            schema: createSaleSchema,
+          },
+        },
+      },
+    },
+    responses: {
+      201: {
+        description: "Sale created successfully",
+        content: {
+          "application/json": {
+            schema: saleCreationResponseSchema,
+          },
+        },
+      },
+      400: {
+        description: "Bad request or products not available",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+      401: {
+        description: "Unauthorized",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+      404: {
+        description: "User or products not found",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+    },
+  },
+  (c) =>
+    c.json({
+      message: "Sale created successfully",
+      sale: {
+        id: 1,
+        user_id: 1,
+        date: new Date().toISOString(),
+        total_amount: 59.98,
+        status: "completed",
+        note: "Sample sale",
+        invoice_id: null,
+        address: "123 Main St",
+        products: [
+          {
+            product_id: 1,
+            quantity: 2,
+            unit_price: 29.99,
+            total_price: 59.98,
+            product_name: "Sample Product",
+            product_description: "A sample product description",
+            product_category: "Electronics",
+            product_image_url: "https://example.com/image.jpg",
+          },
+        ],
+      },
+    }),
+);
+
+openApiApp.openapi(
+  {
+    method: "get",
+    path: "/api/sales",
+    tags: ["Sales"],
+    summary: "Get User Sales",
+    description: "Get paginated list of user sales (requires authentication)",
     security: [{ bearerAuth: [] }],
     request: {
       query: z.object({
         page: z.string().optional(),
         limit: z.string().optional(),
-        unread_only: z.string().optional()
-      })
+        status: z.string().optional(),
+      }),
     },
     responses: {
       200: {
-        description: 'Notifications retrieved successfully',
+        description: "Sales retrieved successfully",
         content: {
-          'application/json': {
-            schema: z.object({
-              notifications: z.array(NotificationSchema.omit({ updated_at: true, user_id: true })),
-              pagination: PaginationSchema
-            })
-          }
-        }
+          "application/json": {
+            schema: salesListResponseSchema,
+          },
+        },
       },
       401: {
-        description: 'Unauthorized',
+        description: "Unauthorized",
         content: {
-          'application/json': {
-            schema: ErrorSchema
-          }
-        }
-      }
-    }
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+      404: {
+        description: "User not found",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+    },
   },
-  (c) => c.json({
-    notifications: [
-      {
-        id: 1,
-        title: 'Welcome',
-        message: 'Welcome to our platform!',
-        type: 'WELCOME',
-        product_id: undefined,
-        read: false,
-        created_at: new Date().toISOString()
-      }
-    ],
-    pagination: {
-      page: 1,
-      limit: 10,
-      total: 1,
-      totalPages: 1,
-      hasNext: false,
-      hasPrev: false
-    }
-  })
+  (c) =>
+    c.json({
+      sales: [
+        {
+          id: 1,
+          user_id: 1,
+          date: new Date().toISOString(),
+          total_amount: 59.98,
+          status: "completed",
+          note: "Sample sale",
+          invoice_id: null,
+          address: "123 Main St",
+          products: [
+            {
+              product_id: 1,
+              quantity: 2,
+              unit_price: 29.99,
+              total_price: 59.98,
+              product_name: "Sample Product",
+              product_description: "A sample product description",
+              product_category: "Electronics",
+              product_image_url: "https://example.com/image.jpg",
+            },
+          ],
+        },
+      ],
+      pagination: {
+        page: 1,
+        limit: 20,
+        total: 1,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false,
+      },
+    }),
 );
 
-// Likes routes
 openApiApp.openapi(
   {
-    method: 'post',
-    path: '/api/likes',
-    tags: ['Likes'],
-    summary: 'Like Product',
-    description: 'Like a product',
+    method: "get",
+    path: "/api/sales/{id}",
+    tags: ["Sales"],
+    summary: "Get Sale by ID",
+    description: "Get a specific sale by its ID (requires authentication)",
     security: [{ bearerAuth: [] }],
     request: {
-      body: {
-        content: {
-          'application/json': {
-            schema: CreateProductLikeSchema
-          }
-        }
-      }
+      params: z.object({
+        id: z.string(),
+      }),
     },
     responses: {
       200: {
-        description: 'Product liked successfully',
+        description: "Sale retrieved successfully",
         content: {
-          'application/json': {
+          "application/json": {
             schema: z.object({
-              message: z.string()
-            })
-          }
-        }
+              sale: saleWithProductsResponseSchema,
+            }),
+          },
+        },
       },
       400: {
-        description: 'Bad request',
+        description: "Invalid sale ID",
         content: {
-          'application/json': {
-            schema: ErrorSchema
-          }
-        }
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
       },
       401: {
-        description: 'Unauthorized',
+        description: "Unauthorized",
         content: {
-          'application/json': {
-            schema: ErrorSchema
-          }
-        }
-      }
-    }
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+      404: {
+        description: "Sale or user not found",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+    },
   },
-  (c) => c.json({ message: 'Product liked successfully' })
+  (c) =>
+    c.json({
+      sale: {
+        id: 1,
+        user_id: 1,
+        date: new Date().toISOString(),
+        total_amount: 59.98,
+        status: "completed",
+        note: "Sample sale",
+        invoice_id: null,
+        address: "123 Main St",
+        products: [
+          {
+            product_id: 1,
+            quantity: 2,
+            unit_price: 29.99,
+            total_price: 59.98,
+            product_name: "Sample Product",
+            product_description: "A sample product description",
+            product_category: "Electronics",
+            product_image_url: "https://example.com/image.jpg",
+          },
+        ],
+      },
+    }),
 );

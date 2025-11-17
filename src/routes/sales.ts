@@ -1,318 +1,371 @@
-import { Hono } from 'hono';
-import pool from '../config/database.js';
-import { authMiddleware } from '../middleware/auth.js';
-import { createSaleProductSchema, createSaleSchema, updateSaleSchema } from '../schemas/validation.js';
+import { Hono } from "hono";
+import pool from "../config/database.js";
+import { authMiddleware } from "../middleware/auth.js";
+import {
+  createSaleSchema,
+  saleCreationResponseSchema,
+  salesListResponseSchema,
+  saleWithProductsResponseSchema,
+} from "../schemas/sale.schema.js";
 
 const sales = new Hono();
 
-// Get user's sales history
-sales.get('/', authMiddleware, async (c) => {
+// Create a new sale
+sales.post("/", authMiddleware, async (c) => {
   try {
-    const user = c.get('user');
-    const page = parseInt(c.req.query('page') || '1');
-    const limit = parseInt(c.req.query('limit') || '20');
-    
-    const offset = (page - 1) * limit;
-    
-    const result = await pool.query(
-      `SELECT s.id, s.date, s.total, s.status, s.note, s.invoice_id, s.address
-       FROM sales s
-       WHERE s.user_id = $1
-       ORDER BY s.date DESC
-       LIMIT $2 OFFSET $3`,
-      [user.id, limit, offset]
+    const body = await c.req.json();
+    const validatedData = createSaleSchema.parse(body);
+
+    const user = c.get("user");
+
+    // Get user from database
+    const existingUser = await pool.query<{ id: number }>(
+      "SELECT id FROM users WHERE cognito_sub = $1",
+      [user.sub],
     );
-    
+
+    if (existingUser.rows.length === 0) {
+      return c.json({ error: "User not found. Please register first." }, 404);
+    }
+
+    const userId = existingUser.rows[0].id;
+
+    // Get all product details and validate them
+    const productIds = validatedData.products.map((p) => p.product_id);
+    const productResult = await pool.query(
+      `SELECT id, name, description, category, price, image_url, seller_id, deleted, paused
+       FROM products 
+       WHERE id = ANY($1)`,
+      [productIds],
+    );
+
+    if (productResult.rows.length !== productIds.length) {
+      return c.json({ error: "One or more products not found" }, 404);
+    }
+
+    const products = productResult.rows;
+
+    // Check if any products are not available
+    const unavailableProducts = products.filter((p) => p.deleted || p.paused);
+    if (unavailableProducts.length > 0) {
+      return c.json(
+        { error: "One or more products are not available for purchase" },
+        400,
+      );
+    }
+
+    // Check if user is trying to buy their own products
+    const ownProducts = products.filter((p) => p.seller_id === userId);
+    if (ownProducts.length > 0) {
+      return c.json({ error: "You cannot buy your own products" }, 400);
+    }
+
+    // Begin transaction
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      // Calculate total amount for all products
+      let totalAmount = 0;
+      const saleProductsData = [];
+
+      for (const requestProduct of validatedData.products) {
+        const product = products.find(
+          (p) => p.id === requestProduct.product_id,
+        );
+        const quantity = requestProduct.quantity;
+        const unitPrice = product.price;
+        const productTotal = unitPrice * quantity;
+
+        totalAmount += productTotal;
+        saleProductsData.push({
+          product_id: requestProduct.product_id,
+          quantity,
+          unit_price: unitPrice,
+          total_price: productTotal,
+          product,
+        });
+      }
+
+      // Create the sale with completed status
+      const saleResult = await client.query(
+        `INSERT INTO sales (user_id, total_amount, status, note, address)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, user_id, date, total_amount, status, note, invoice_id, address`,
+        [
+          userId,
+          totalAmount,
+          "completed",
+          validatedData.note || null,
+          validatedData.address || "",
+        ],
+      );
+
+      const sale = saleResult.rows[0];
+
+      // Create sale_product entries for all products
+      for (const saleProduct of saleProductsData) {
+        await client.query(
+          `INSERT INTO sale_products (sale_id, product_id, quantity, unit_price, total_price)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [
+            sale.id,
+            saleProduct.product_id,
+            saleProduct.quantity,
+            saleProduct.unit_price,
+            saleProduct.total_price,
+          ],
+        );
+      }
+
+      // Get the complete sale with product details
+      const completeSaleResult = await client.query(
+        `SELECT 
+          s.id, s.user_id, s.date, s.total_amount, s.status, 
+          s.note, s.invoice_id, s.address,
+          sp.product_id, sp.quantity, sp.unit_price, sp.total_price,
+          p.name as product_name, p.description as product_description,
+          p.category as product_category, p.image_url as product_image_url
+         FROM sales s
+         JOIN sale_products sp ON s.id = sp.sale_id
+         JOIN products p ON sp.product_id = p.id
+         WHERE s.id = $1`,
+        [sale.id],
+      );
+
+      await client.query("COMMIT");
+
+      // Format the response
+      const firstRow = completeSaleResult.rows[0];
+      const responseData = {
+        message: "Sale created successfully",
+        sale: {
+          id: firstRow.id,
+          user_id: firstRow.user_id,
+          date: firstRow.date.toISOString(),
+          total_amount: firstRow.total_amount,
+          status: firstRow.status,
+          note: firstRow.note,
+          invoice_id: firstRow.invoice_id,
+          address: firstRow.address,
+          products: completeSaleResult.rows.map((row) => ({
+            product_id: row.product_id,
+            quantity: row.quantity,
+            unit_price: row.unit_price,
+            total_price: row.total_price,
+            product_name: row.product_name,
+            product_description: row.product_description,
+            product_category: row.product_category,
+            product_image_url: row.product_image_url,
+          })),
+        },
+      };
+
+      // Validate response data
+      const validatedResponse = saleCreationResponseSchema.parse(responseData);
+      return c.json(validatedResponse, 201);
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      return c.json({ error: error.message }, 400);
+    }
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// Get user's sales
+sales.get("/", authMiddleware, async (c) => {
+  try {
+    const user = c.get("user");
+    const page = parseInt(c.req.query("page") || "1");
+    const limit = parseInt(c.req.query("limit") || "20");
+    const status = c.req.query("status");
+
+    // Get user from database
+    const existingUser = await pool.query<{ id: number }>(
+      "SELECT id FROM users WHERE cognito_sub = $1",
+      [user.sub],
+    );
+
+    if (existingUser.rows.length === 0) {
+      return c.json({ error: "User not found" }, 404);
+    }
+
+    const userId = existingUser.rows[0].id;
+
+    let whereClause = "WHERE s.user_id = $1";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const values: any[] = [userId];
+    let paramCount = 2;
+
+    if (status) {
+      whereClause += ` AND s.status = $${paramCount}`;
+      values.push(status);
+      paramCount++;
+    }
+
+    const offset = (page - 1) * limit;
+    values.push(limit, offset);
+
+    // Get sales with products
+    const result = await pool.query(
+      `SELECT 
+        s.id, s.user_id, s.date, s.total_amount, s.status, 
+        s.note, s.invoice_id, s.address,
+        sp.product_id, sp.quantity, sp.unit_price, sp.total_price,
+        p.name as product_name, p.description as product_description,
+        p.category as product_category, p.image_url as product_image_url
+       FROM sales s
+       JOIN sale_products sp ON s.id = sp.sale_id
+       JOIN products p ON sp.product_id = p.id
+       ${whereClause}
+       ORDER BY s.date DESC
+       LIMIT $${paramCount} OFFSET $${paramCount + 1}`,
+      values,
+    );
+
     // Get total count
     const countResult = await pool.query(
-      'SELECT COUNT(*) FROM sales WHERE user_id = $1',
-      [user.id]
+      `SELECT COUNT(*) FROM sales s ${whereClause}`,
+      values.slice(0, -2),
     );
-    
+
     const total = parseInt(countResult.rows[0].count);
     const totalPages = Math.ceil(total / limit);
-    
-    // Get products for each sale
-    const salesWithProducts = await Promise.all(
-      result.rows.map(async (sale) => {
-        const productsResult = await pool.query(
-          `SELECT sp.product_id, sp.price, sp.amount,
-                  p.name, p.description,
-                  u.first_name, u.last_name
-           FROM sales_products sp
-           JOIN products p ON sp.product_id = p.id
-           JOIN users u ON p.seller_id = u.id
-           WHERE sp.sale_id = $1`,
-          [sale.id]
-        );
-        
-        return {
-          ...sale,
-          products: productsResult.rows
-        };
-      })
-    );
-    
-    return c.json({
-      sales: salesWithProducts,
+
+    // Group sales by sale id
+    const salesMap = new Map();
+
+    result.rows.forEach((row) => {
+      if (!salesMap.has(row.id)) {
+        salesMap.set(row.id, {
+          id: row.id,
+          user_id: row.user_id,
+          date: row.date.toISOString(),
+          total_amount: row.total_amount,
+          status: row.status,
+          note: row.note,
+          invoice_id: row.invoice_id,
+          address: row.address,
+          products: [],
+        });
+      }
+
+      salesMap.get(row.id).products.push({
+        product_id: row.product_id,
+        quantity: row.quantity,
+        unit_price: row.unit_price,
+        total_price: row.total_price,
+        product_name: row.product_name,
+        product_description: row.product_description,
+        product_category: row.product_category,
+        product_image_url: row.product_image_url,
+      });
+    });
+
+    const sales = Array.from(salesMap.values());
+
+    const responseData = {
+      sales,
       pagination: {
         page,
         limit,
         total,
         totalPages,
         hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
-    });
-  } catch (error) {
-    return c.json({ error: 'Internal server error' }, 500);
-  }
-});
+        hasPrev: page > 1,
+      },
+    };
 
-// Get sale by ID
-sales.get('/:id', authMiddleware, async (c) => {
-  try {
-    const user = c.get('user');
-    const saleId = parseInt(c.req.param('id'));
-    
-    if (isNaN(saleId)) {
-      return c.json({ error: 'Invalid sale ID' }, 400);
-    }
-    
-    const result = await pool.query(
-      `SELECT s.id, s.date, s.total, s.status, s.note, s.invoice_id, s.address
-       FROM sales s
-       WHERE s.id = $1 AND s.user_id = $2`,
-      [saleId, user.id]
-    );
-    
-    if (result.rows.length === 0) {
-      return c.json({ error: 'Sale not found' }, 404);
-    }
-    
-    const sale = result.rows[0];
-    
-    // Get products for this sale
-    const productsResult = await pool.query(
-      `SELECT sp.product_id, sp.price, sp.amount,
-              p.name, p.description,
-              u.first_name, u.last_name
-       FROM sales_products sp
-       JOIN products p ON sp.product_id = p.id
-       JOIN users u ON p.seller_id = u.id
-       WHERE sp.sale_id = $1`,
-      [saleId]
-    );
-    
-    sale.products = productsResult.rows;
-    
-    return c.json({ sale });
-  } catch (error) {
-    return c.json({ error: 'Internal server error' }, 500);
-  }
-});
-
-// Create new sale (checkout from cart)
-sales.post('/', authMiddleware, async (c) => {
-  try {
-    const user = c.get('user');
-    const body = await c.req.json();
-    const validatedData = createSaleSchema.parse(body);
-    
-    // Get user's cart
-    const cartResult = await pool.query(
-      `SELECT cp.product_id, cp.amount, p.price, p.name, p.seller_id
-       FROM cart_products cp
-       JOIN products p ON cp.product_id = p.id
-       WHERE cp.user_id = $1 AND p.deleted = false AND p.paused = false`,
-      [user.id]
-    );
-    
-    if (cartResult.rows.length === 0) {
-      return c.json({ error: 'Cart is empty' }, 400);
-    }
-    
-    // Calculate total
-    let total = 0;
-    cartResult.rows.forEach(item => {
-      total += item.price * item.amount;
-    });
-    
-    // Validate total matches
-    if (Math.abs(total - validatedData.total) > 0.01) {
-      return c.json({ error: 'Total amount mismatch' }, 400);
-    }
-    
-    // Start transaction
-    const client = await pool.connect();
-    
-    try {
-      await client.query('BEGIN');
-      
-      // Create sale
-      const saleResult = await client.query(
-        `INSERT INTO sales (user_id, total, status, note, invoice_id, address)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id`,
-        [
-          user.id,
-          total,
-          validatedData.status || 'pending',
-          validatedData.note,
-          validatedData.invoice_id,
-          validatedData.address
-        ]
-      );
-      
-      const saleId = saleResult.rows[0].id;
-      
-      // Create sale products
-      for (const item of cartResult.rows) {
-        await client.query(
-          'INSERT INTO sales_products (sale_id, product_id, price, amount) VALUES ($1, $2, $3, $4)',
-          [saleId, item.product_id, item.price, item.amount]
-        );
-      }
-      
-      // Clear cart
-      await client.query(
-        'DELETE FROM cart_products WHERE user_id = $1',
-        [user.id]
-      );
-      
-      await client.query('COMMIT');
-      
-      return c.json({
-        message: 'Sale created successfully',
-        sale_id: saleId,
-        total: total
-      }, 201);
-      
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
-    
+    // Validate response data
+    const validatedResponse = salesListResponseSchema.parse(responseData);
+    return c.json(validatedResponse);
   } catch (error) {
     if (error instanceof Error) {
       return c.json({ error: error.message }, 400);
     }
-    return c.json({ error: 'Internal server error' }, 500);
+    return c.json({ error: "Internal server error" }, 500);
   }
 });
 
-// Update sale status
-sales.put('/:id/status', authMiddleware, async (c) => {
+// Get sale by ID
+sales.get("/:id", authMiddleware, async (c) => {
   try {
-    const user = c.get('user');
-    const saleId = parseInt(c.req.param('id'));
-    
+    const saleId = parseInt(c.req.param("id"));
+    const user = c.get("user");
+
     if (isNaN(saleId)) {
-      return c.json({ error: 'Invalid sale ID' }, 400);
+      return c.json({ error: "Invalid sale ID" }, 400);
     }
-    
-    const body = await c.req.json();
-    const { status } = body;
-    
-    if (!status || typeof status !== 'string') {
-      return c.json({ error: 'Status is required' }, 400);
-    }
-    
-    // Verify sale belongs to user
-    const saleCheck = await pool.query(
-      'SELECT id FROM sales WHERE id = $1 AND user_id = $2',
-      [saleId, user.id]
-    );
-    
-    if (saleCheck.rows.length === 0) {
-      return c.json({ error: 'Sale not found' }, 404);
-    }
-    
-    await pool.query(
-      'UPDATE sales SET status = $1 WHERE id = $2',
-      [status, saleId]
-    );
-    
-    return c.json({
-      message: 'Sale status updated successfully',
-      status: status
-    });
-  } catch (error) {
-    return c.json({ error: 'Internal server error' }, 500);
-  }
-});
 
-// Get sales statistics
-sales.get('/stats/summary', authMiddleware, async (c) => {
-  try {
-    const user = c.get('user');
-    
+    // Get user from database
+    const existingUser = await pool.query<{ id: number }>(
+      "SELECT id FROM users WHERE cognito_sub = $1",
+      [user.sub],
+    );
+
+    if (existingUser.rows.length === 0) {
+      return c.json({ error: "User not found" }, 404);
+    }
+
+    const userId = existingUser.rows[0].id;
+
+    // Get sale with products
     const result = await pool.query(
       `SELECT 
-         COUNT(*) as total_sales,
-         SUM(total) as total_spent,
-         AVG(total) as average_order,
-         MIN(date) as first_order,
-         MAX(date) as last_order
-       FROM sales
-       WHERE user_id = $1`,
-      [user.id]
+        s.id, s.user_id, s.date, s.total_amount, s.status, 
+        s.note, s.invoice_id, s.address,
+        sp.product_id, sp.quantity, sp.unit_price, sp.total_price,
+        p.name as product_name, p.description as product_description,
+        p.category as product_category, p.image_url as product_image_url
+       FROM sales s
+       JOIN sale_products sp ON s.id = sp.sale_id
+       JOIN products p ON sp.product_id = p.id
+       WHERE s.id = $1 AND s.user_id = $2`,
+      [saleId, userId],
     );
-    
-    const stats = result.rows[0];
-    
-    return c.json({
-      total_sales: parseInt(stats.total_sales || '0'),
-      total_spent: parseFloat(stats.total_spent || '0'),
-      average_order: parseFloat(stats.average_order || '0'),
-      first_order: stats.first_order,
-      last_order: stats.last_order
-    });
-  } catch (error) {
-    return c.json({ error: 'Internal server error' }, 500);
-  }
-});
 
-// Cancel sale (if status allows)
-sales.patch('/:id/cancel', authMiddleware, async (c) => {
-  try {
-    const user = c.get('user');
-    const saleId = parseInt(c.req.param('id'));
-    
-    if (isNaN(saleId)) {
-      return c.json({ error: 'Invalid sale ID' }, 400);
+    if (result.rows.length === 0) {
+      return c.json({ error: "Sale not found" }, 404);
     }
-    
-    // Verify sale belongs to user and can be cancelled
-    const saleCheck = await pool.query(
-      'SELECT id, status FROM sales WHERE id = $1 AND user_id = $2',
-      [saleId, user.id]
-    );
-    
-    if (saleCheck.rows.length === 0) {
-      return c.json({ error: 'Sale not found' }, 404);
-    }
-    
-    const sale = saleCheck.rows[0];
-    
-    // Only allow cancellation of pending sales
-    if (sale.status !== 'pending') {
-      return c.json({ error: 'Sale cannot be cancelled in current status' }, 400);
-    }
-    
-    await pool.query(
-      'UPDATE sales SET status = $1 WHERE id = $2',
-      ['cancelled', saleId]
-    );
-    
-    return c.json({
-      message: 'Sale cancelled successfully',
-      status: 'cancelled'
-    });
+
+    const firstRow = result.rows[0];
+
+    const saleData = {
+      id: firstRow.id,
+      user_id: firstRow.user_id,
+      date: firstRow.date.toISOString(),
+      total_amount: firstRow.total_amount,
+      status: firstRow.status,
+      note: firstRow.note,
+      invoice_id: firstRow.invoice_id,
+      address: firstRow.address,
+      products: result.rows.map((row) => ({
+        product_id: row.product_id,
+        quantity: row.quantity,
+        unit_price: row.unit_price,
+        total_price: row.total_price,
+        product_name: row.product_name,
+        product_description: row.product_description,
+        product_category: row.product_category,
+        product_image_url: row.product_image_url,
+      })),
+    };
+
+    // Validate response data
+    const validatedResponse = saleWithProductsResponseSchema.parse(saleData);
+    return c.json({ sale: validatedResponse });
   } catch (error) {
-    return c.json({ error: 'Internal server error' }, 500);
+    if (error instanceof Error) {
+      return c.json({ error: error.message }, 400);
+    }
+    return c.json({ error: "Internal server error" }, 500);
   }
 });
 

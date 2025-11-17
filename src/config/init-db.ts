@@ -1,6 +1,7 @@
-import { readFileSync } from 'fs';
-import { join } from 'path';
-import pool from './database.js';
+/* eslint-disable no-console */
+import { readFileSync, readdirSync } from "fs";
+import { join } from "path";
+import pool from "./database.js";
 
 /**
  * Check if a table exists in the database
@@ -23,37 +24,47 @@ async function tableExists(tableName: string): Promise<boolean> {
 }
 
 /**
- * Get list of tables that should exist based on schema.sql
+ * Get list of tables that should exist based on db-init scripts
  */
 function getRequiredTables(): string[] {
   return [
-    'users',
-    'products', 
-    'sales',
-    'sales_products',
-    'cart_products',
-    'tokens',
-    'stores',
-    'notifications',
-    'product_likes',
-    'reviews'
+    "users",
+    "products",
+    "reviews",
+    "sales",
+    "sale_products",
+    "favorites",
   ];
 }
 
 /**
- * Read and execute the schema.sql file
+ * Read and execute all SQL scripts from db-init folder in order
  */
-async function executeSchemaScript(): Promise<void> {
+async function executeSchemaScripts(): Promise<void> {
   try {
-    // Read the schema.sql file
-    const schemaPath = join(process.cwd(), 'schema.sql');
-    const schemaSQL = readFileSync(schemaPath, 'utf8');
-    
-    // Execute the schema script
-    await pool.query(schemaSQL);
-    console.log('✅ Database schema initialized successfully');
+    // Get the db-init directory path
+    const dbInitPath = join(process.cwd(), "db-init");
+
+    // Read all SQL files from db-init directory
+    const files = readdirSync(dbInitPath)
+      .filter((file) => file.endsWith(".sql"))
+      .sort(); // Execute in alphabetical order (01-, 02-, 03-)
+
+    console.log(`📁 Found ${files.length} SQL scripts to execute:`, files);
+
+    // Execute each script in order
+    for (const file of files) {
+      console.log(`🔄 Executing ${file}...`);
+      const scriptPath = join(dbInitPath, file);
+      const scriptSQL = readFileSync(scriptPath, "utf8");
+
+      await pool.query(scriptSQL);
+      console.log(`✅ ${file} executed successfully`);
+    }
+
+    console.log("✅ All database schema scripts initialized successfully");
   } catch (error) {
-    console.error('❌ Error executing schema script:', error);
+    console.error("❌ Error executing schema scripts:", error);
     throw error;
   }
 }
@@ -63,29 +74,31 @@ async function executeSchemaScript(): Promise<void> {
  */
 export async function initializeDatabase(): Promise<void> {
   try {
-    console.log('🔍 Checking database initialization...');
-    
+    console.log("🔍 Checking database initialization...");
+
     // Get list of required tables
     const requiredTables = getRequiredTables();
-    
+
     // Check if all required tables exist
     const tableChecks = await Promise.all(
-      requiredTables.map(table => tableExists(table))
+      requiredTables.map((table) => tableExists(table)),
     );
-    
-    const missingTables = requiredTables.filter((_, index) => !tableChecks[index]);
-    
+
+    const missingTables = requiredTables.filter(
+      (_, index) => !tableChecks[index],
+    );
+
     if (missingTables.length > 0) {
-      console.log(`📋 Missing tables detected: ${missingTables.join(', ')}`);
-      console.log('🚀 Initializing database schema...');
-      await executeSchemaScript();
+      console.log(`📋 Missing tables detected: ${missingTables.join(", ")}`);
+      console.log("🚀 Initializing database schema...");
+      await executeSchemaScripts();
     } else {
-      console.log('✅ All required tables already exist');
+      console.log("✅ All required tables already exist");
     }
-    
-    console.log('🎉 Database initialization completed');
+
+    console.log("🎉 Database initialization completed");
   } catch (error) {
-    console.error('💥 Database initialization failed:', error);
+    console.error("💥 Database initialization failed:", error);
     throw error;
   }
 }
@@ -95,11 +108,11 @@ export async function initializeDatabase(): Promise<void> {
  */
 export async function testDatabaseConnection(): Promise<void> {
   try {
-    const result = await pool.query('SELECT NOW()');
-    console.log('✅ Database connection successful');
+    const result = await pool.query("SELECT NOW()");
+    console.log("✅ Database connection successful");
     console.log(`🕐 Database time: ${result.rows[0].now}`);
   } catch (error) {
-    console.error('❌ Database connection failed:', error);
+    console.error("❌ Database connection failed:", error);
     throw error;
   }
 }
