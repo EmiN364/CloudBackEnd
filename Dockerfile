@@ -34,10 +34,6 @@ ENV DB_NAME=your_database_name
 ENV DB_USER=your_username
 ENV DB_PASSWORD=your_password
 
-# JWT Configuration
-ENV JWT_SECRET=your_jwt_secret_key_here
-ENV JWT_EXPIRES_IN=24h
-
 # AWS S3 Configuration
 ENV AWS_REGION=us-east-1
 ENV AWS_ACCESS_KEY_ID=your_aws_access_key_id
