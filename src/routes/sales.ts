@@ -151,7 +151,7 @@ sales.post("/", authMiddleware, async (c) => {
           total_amount: firstRow.total_amount,
           status: firstRow.status,
           note: firstRow.note,
-          invoice_id: firstRow.invoice_id,
+          invoice_id: firstRow.invoice_id ? parseInt(firstRow.invoice_id) : null,
           address: firstRow.address,
           products: completeSaleResult.rows.map((row) => ({
             product_id: row.product_id,
@@ -176,9 +176,8 @@ sales.post("/", authMiddleware, async (c) => {
       client.release();
     }
   } catch (error) {
-    if (error instanceof Error) {
-      return c.json({ error: error.message }, 400);
-    }
+    // eslint-disable-next-line no-console
+    console.error(error);
     return c.json({ error: "Internal server error" }, 500);
   }
 });
@@ -255,7 +254,7 @@ sales.get("/", authMiddleware, async (c) => {
           total_amount: row.total_amount,
           status: row.status,
           note: row.note,
-          invoice_id: row.invoice_id,
+          invoice_id: row.invoice_id ? parseInt(row.invoice_id) : null,
           address: row.address,
           products: [],
         });
@@ -348,7 +347,7 @@ sales.get("/:id", authMiddleware, async (c) => {
       total_amount: firstRow.total_amount,
       status: firstRow.status,
       note: firstRow.note,
-      invoice_id: firstRow.invoice_id,
+      invoice_id: firstRow.invoice_id ? parseInt(firstRow.invoice_id) : null,
       address: firstRow.address,
       products: result.rows.map((row) => ({
         product_id: row.product_id,
