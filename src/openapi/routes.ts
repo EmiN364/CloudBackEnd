@@ -21,7 +21,7 @@ import {
   salesListResponseSchema,
   saleWithProductsResponseSchema,
 } from "../schemas/sale.schema.js";
-import { userProfileResponseSchema } from "../schemas/user.schema.js";
+import { userProfileResponseSchema, userProfileUpdateSchema } from "../schemas/user.schema.js";
 
 // Create OpenAPI app
 export const openApiApp = new OpenAPIHono();
@@ -106,6 +106,88 @@ openApiApp.openapi(
         is_seller: false,
         deleted: false,
         address: "123 Main St",
+        profile_picture: null,
+      },
+    }),
+);
+
+// Update user profile
+openApiApp.openapi(
+  {
+    method: "put",
+    path: "/api/users/profile",
+    tags: ["Users"],
+    summary: "Update User Profile",
+    description: "Update user profile information (address and profile picture)",
+    security: [{ bearerAuth: [] }],
+    request: {
+      body: {
+        content: {
+          "application/json": {
+            schema: userProfileUpdateSchema,
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: "User profile updated successfully",
+        content: {
+          "application/json": {
+            schema: userProfileResponseSchema,
+          },
+        },
+      },
+      400: {
+        description: "Bad request - Invalid data or no fields to update",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+      401: {
+        description: "Unauthorized",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+      404: {
+        description: "User not found",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+      500: {
+        description: "Internal server error",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+    },
+  },
+  (c) =>
+    c.json({
+      user: {
+        id: 1,
+        cognito_sub: "sample-cognito-sub",
+        email: "user@example.com",
+        email_verified: true,
+        phone_number: "+1234567890",
+        given_name: "John",
+        family_name: "Doe",
+        username: "johndoe",
+        cognito_username: "johndoe",
+        is_seller: false,
+        deleted: false,
+        address: "456 Updated St",
+        profile_picture: "https://example.com/profile.jpg",
       },
     }),
 );

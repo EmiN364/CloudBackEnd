@@ -14,6 +14,13 @@ export const userResponseSchema = z.object({
   is_seller: z.boolean(),
   deleted: z.boolean().nullable(),
   address: z.string().nullable(),
+  profile_picture: z.string().nullable(),
+});
+
+// User profile update schema
+export const userProfileUpdateSchema = z.object({
+  address: z.string().optional(),
+  profile_picture: z.string().optional(),
 });
 
 // User profile response schema

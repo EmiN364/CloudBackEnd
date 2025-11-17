@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS users(
     cognito_username TEXT,
     is_seller BOOLEAN NOT NULL DEFAULT FALSE,
     deleted BOOLEAN DEFAULT FALSE,
-    address VARCHAR(255) DEFAULT ''
+    address VARCHAR(255) DEFAULT '',
+    profile_picture TEXT
 );
 
 -- Create indexes for faster lookups
