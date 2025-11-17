@@ -46,7 +46,7 @@ export const authMiddleware = async (c: Context, next: Next) => {
     c.set("user", payload);
 
     await next();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (err: any) {
     return c.json({ error: "Unauthorized", message: err.message }, 401);
   }
@@ -67,9 +67,9 @@ export const optionalAuthMiddleware = async (c: Context, next: Next) => {
 
         // Attach the user data to the Hono context if token is valid
         c.set("user", payload);
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      } catch (err) {
-        ;
+      } catch {
+        // Token is invalid, but we continue without setting user context
+        // This is expected behavior for optional auth
       }
     }
   }
@@ -90,8 +90,8 @@ export const getUserId = async (c: Context): Promise<number | null> => {
     );
 
     return userResult.rows.length > 0 ? userResult.rows[0].id : null;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  } catch (error) {
+  } catch {
+    // Database error or invalid user context, return null
     return null;
   }
 };

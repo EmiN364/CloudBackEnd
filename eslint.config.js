@@ -1,17 +1,17 @@
-import js from '@eslint/js';
-import tseslint from '@typescript-eslint/eslint-plugin';
-import tsparser from '@typescript-eslint/parser';
-import globals from 'globals';
+import js from "@eslint/js";
+import tseslint from "@typescript-eslint/eslint-plugin";
+import tsparser from "@typescript-eslint/parser";
+import globals from "globals";
 
 export default [
   js.configs.recommended,
   {
-    files: ['**/*.ts', '**/*.js'],
+    files: ["**/*.ts", "**/*.js"],
     languageOptions: {
       parser: tsparser,
       parserOptions: {
-        ecmaVersion: 'latest',
-        sourceType: 'module',
+        ecmaVersion: "latest",
+        sourceType: "module",
       },
       globals: {
         ...globals.node,
@@ -19,17 +19,17 @@ export default [
       },
     },
     plugins: {
-      '@typescript-eslint': tseslint,
+      "@typescript-eslint": tseslint,
     },
     rules: {
       ...tseslint.configs.recommended.rules,
-      '@typescript-eslint/no-unused-vars': 'error',
-      '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      'no-console': 'warn',
+      "@typescript-eslint/no-unused-vars": "error",
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/explicit-function-return-type": "off",
+      "no-console": "warn",
     },
   },
   {
-    ignores: ['dist/**', 'node_modules/**', '*.config.js'],
+    ignores: ["dist/**", "node_modules/**", "*.config.js"],
   },
 ];

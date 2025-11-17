@@ -34,6 +34,7 @@ function getRequiredTables(): string[] {
     "sales",
     "sale_products",
     "favorites",
+    "stores",
   ];
 }
 

@@ -21,7 +21,10 @@ import {
   salesListResponseSchema,
   saleWithProductsResponseSchema,
 } from "../schemas/sale.schema.js";
-import { userProfileResponseSchema, userProfileUpdateSchema } from "../schemas/user.schema.js";
+import {
+  userProfileResponseSchema,
+  userProfileUpdateSchema,
+} from "../schemas/user.schema.js";
 
 // Create OpenAPI app
 export const openApiApp = new OpenAPIHono();
@@ -118,7 +121,8 @@ openApiApp.openapi(
     path: "/api/users/profile",
     tags: ["Users"],
     summary: "Update User Profile",
-    description: "Update user profile information (address and profile picture)",
+    description:
+      "Update user profile information (address and profile picture)",
     security: [{ bearerAuth: [] }],
     request: {
       body: {
@@ -245,6 +249,9 @@ openApiApp.openapi(
           rating: 4.5,
           ratingCount: 10,
           is_favorite: false,
+          store_id: 1,
+          store_name: "Sample Store",
+          store_image_url: "https://example.com/store-image.jpg",
         },
       ],
       pagination: {
@@ -313,6 +320,9 @@ openApiApp.openapi(
         rating: 4.5,
         ratingCount: 10,
         is_favorite: false,
+        store_id: 1,
+        store_name: "Sample Store",
+        store_image_url: "https://example.com/store-image.jpg",
       },
     }),
 );
@@ -380,6 +390,9 @@ openApiApp.openapi(
         price: 29.99,
         seller_id: 1,
         image_url: "https://example.com/image.jpg",
+        store_id: 1,
+        store_name: "Sample Store",
+        store_image_url: "https://example.com/store-image.jpg",
       },
     }),
 );

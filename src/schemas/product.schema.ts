@@ -31,6 +31,10 @@ export const productResponseSchema = z.object({
   rating: z.number(),
   ratingCount: z.number(),
   is_favorite: z.boolean().optional(),
+  // Store information
+  store_id: z.number(),
+  store_name: z.string(),
+  store_image_url: z.string().nullable(),
 });
 
 // Products list response schema
@@ -50,5 +54,9 @@ export const productCreationResponseSchema = z.object({
     price: z.number(),
     seller_id: z.number(),
     image_url: z.string().nullable(),
+    // Store information
+    store_id: z.number(),
+    store_name: z.string(),
+    store_image_url: z.string().nullable(),
   }),
 });

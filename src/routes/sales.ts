@@ -151,7 +151,9 @@ sales.post("/", authMiddleware, async (c) => {
           total_amount: firstRow.total_amount,
           status: firstRow.status,
           note: firstRow.note,
-          invoice_id: firstRow.invoice_id ? parseInt(firstRow.invoice_id) : null,
+          invoice_id: firstRow.invoice_id
+            ? parseInt(firstRow.invoice_id)
+            : null,
           address: firstRow.address,
           products: completeSaleResult.rows.map((row) => ({
             product_id: row.product_id,

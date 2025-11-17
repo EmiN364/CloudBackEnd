@@ -13,20 +13,12 @@ import { openApiApp } from "./openapi/routes.js";
 import { openApiConfig } from "./openapi/spec.js";
 
 // Import routes
-/* import cart from './routes_back/cart.js'
-import images from './routes_back/images.js'
-import likes from './routes_back/likes.js'
-import notifications from './routes_back/notifications.js'
-import products from './routes_back/products.js'
-import reviews from './routes_back/reviews.js'
-import sales from './routes_back/sales.js'
-import stores from './routes_back/stores.js'
-import users from './routes_back/users.js' */
 import users from "./routes/users.js";
 import products from "./routes/products.js";
 import reviews from "./routes/reviews.js";
 import sales from "./routes/sales.js";
 import favorites from "./routes/favorites.js";
+import stores from "./routes/stores.js";
 
 // Load environment variables
 dotenv.config();
@@ -68,13 +60,7 @@ app.route("/api/products", products);
 app.route("/api/reviews", reviews);
 app.route("/api/sales", sales);
 app.route("/api/favorites", favorites);
-/* app.route('/api/stores', stores)
-app.route('/api/cart', cart)
-app.route('/api/sales', sales)
-app.route('/api/reviews', reviews)
-app.route('/api/notifications', notifications)
-app.route('/api/likes', likes)
-app.route('/api/images', images) */
+app.route("/api/stores", stores);
 
 // 404 handler
 app.notFound((c) => {

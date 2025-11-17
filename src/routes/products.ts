@@ -63,9 +63,11 @@ products.get("/", optionalAuthMiddleware, async (c) => {
     // Build query with optional favorite check
     let selectClause = `SELECT p.id, p.name, p.description, p.category, p.price, p.paused, p.image_url, p.seller_id,
               COALESCE(AVG(r.rating), 0) as rating,
-              COUNT(r.id) as ratingCount`;
+              COUNT(r.id) as ratingCount,
+              s.store_id, s.store_name, s.store_image_url`;
     let fromClause = `FROM products p
-       LEFT JOIN reviews r ON p.id = r.product_id`;
+       LEFT JOIN reviews r ON p.id = r.product_id
+       LEFT JOIN stores s ON p.seller_id = s.store_id`;
 
     if (userId) {
       selectClause += `,
@@ -85,14 +87,14 @@ products.get("/", optionalAuthMiddleware, async (c) => {
       `${selectClause}
        ${fromClause}
        ${whereClause}
-       GROUP BY p.id, p.name, p.description, p.category, p.price, p.paused, p.image_url, p.seller_id${userId ? ", f.user_id" : ""}
+       GROUP BY p.id, p.name, p.description, p.category, p.price, p.paused, p.image_url, p.seller_id, s.store_id, s.store_name, s.store_image_url${userId ? ", f.user_id" : ""}
        ORDER BY p.id DESC
        LIMIT $${paramCount} OFFSET $${paramCount + 1}`,
       values,
     );
 
     // Get total count
-    let countQuery = `SELECT COUNT(*) FROM products p`;
+    let countQuery = `SELECT COUNT(*) FROM products p LEFT JOIN stores s ON p.seller_id = s.store_id`;
     if (liked && userId) {
       countQuery += ` INNER JOIN favorites f ON p.id = f.product_id AND f.user_id = ${userId}`;
     }
@@ -149,9 +151,11 @@ products.get("/:id", optionalAuthMiddleware, async (c) => {
     // Build query with optional favorite check
     let selectClause = `SELECT p.id, p.name, p.description, p.category, p.price, p.paused, p.image_url, p.seller_id,
               COALESCE(AVG(r.rating), 0) as rating,
-              COUNT(r.id) as ratingCount`;
+              COUNT(r.id) as ratingCount,
+              s.store_id, s.store_name, s.store_image_url`;
     let fromClause = `FROM products p
-       LEFT JOIN reviews r ON p.id = r.product_id`;
+       LEFT JOIN reviews r ON p.id = r.product_id
+       LEFT JOIN stores s ON p.seller_id = s.store_id`;
 
     if (userId) {
       selectClause += `,
@@ -164,7 +168,7 @@ products.get("/:id", optionalAuthMiddleware, async (c) => {
       `${selectClause}
        ${fromClause}
        WHERE p.id = $1 AND p.deleted = false
-       GROUP BY p.id, p.name, p.description, p.category, p.price, p.paused, p.image_url, p.seller_id${userId ? ", f.user_id" : ""}`,
+       GROUP BY p.id, p.name, p.description, p.category, p.price, p.paused, p.image_url, p.seller_id, s.store_id, s.store_name, s.store_image_url${userId ? ", f.user_id" : ""}`,
       [productId],
     );
 
@@ -216,6 +220,22 @@ products.post("/", authMiddleware, async (c) => {
       await pool.query("UPDATE users SET is_seller = true WHERE id = $1", [
         userId,
       ]);
+
+      // Get user's name for store creation
+      const userResult = await pool.query(
+        "SELECT given_name, family_name FROM users WHERE id = $1",
+        [userId],
+      );
+
+      const user = userResult.rows[0];
+      const userName = user.given_name || user.family_name || "Usuario";
+      const storeName = `Tienda de ${userName}`;
+
+      // Create store for the new seller
+      await pool.query(
+        "INSERT INTO stores (store_id, store_name, description, store_image_url, cover_image_url) VALUES ($1, $2, $3, $4, $5)",
+        [userId, storeName, null, null, null],
+      );
     }
 
     const result = await pool.query(
@@ -232,9 +252,20 @@ products.post("/", authMiddleware, async (c) => {
       ],
     );
 
+    // Get store information for the response
+    const storeResult = await pool.query(
+      "SELECT store_id, store_name, store_image_url FROM stores WHERE store_id = $1",
+      [userId],
+    );
+
     const responseData = {
       message: "Product created successfully",
-      product: result.rows[0],
+      product: {
+        ...result.rows[0],
+        store_id: storeResult.rows[0].store_id,
+        store_name: storeResult.rows[0].store_name,
+        store_image_url: storeResult.rows[0].store_image_url,
+      },
     };
 
     // Validate response data
