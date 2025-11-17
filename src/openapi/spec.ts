@@ -37,5 +37,6 @@ export const openApiConfig = {
     { name: "Favorites", description: "Product favorites management" },
     { name: "Sales", description: "Order and sales management" },
     { name: "Reviews", description: "Product review management" },
+    { name: "Stores", description: "Store management operations" },
   ],
 };

@@ -25,6 +25,12 @@ import {
   userProfileResponseSchema,
   userProfileUpdateSchema,
 } from "../schemas/user.schema.js";
+import {
+  storesListResponseSchema,
+  singleStoreResponseSchema,
+  storeUpdateSchema,
+  storeUpdateResponseSchema,
+} from "../schemas/store.schema.js";
 
 // Create OpenAPI app
 export const openApiApp = new OpenAPIHono();
@@ -831,6 +837,204 @@ openApiApp.openapi(
             product_image_url: "https://example.com/image.jpg",
           },
         ],
+      },
+    }),
+);
+
+// Stores routes
+openApiApp.openapi(
+  {
+    method: "get",
+    path: "/api/stores",
+    tags: ["Stores"],
+    summary: "Get Stores",
+    description: "Get paginated list of all stores",
+    request: {
+      query: z.object({
+        page: z.string().optional(),
+        limit: z.string().optional(),
+      }),
+    },
+    responses: {
+      200: {
+        description: "Stores retrieved successfully",
+        content: {
+          "application/json": {
+            schema: storesListResponseSchema,
+          },
+        },
+      },
+      500: {
+        description: "Internal server error",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+    },
+  },
+  (c) =>
+    c.json({
+      stores: [
+        {
+          store_id: 1,
+          store_name: "Sample Store",
+          description: "A sample store description",
+          store_image_url: "https://example.com/store-image.jpg",
+          cover_image_url: "https://example.com/cover-image.jpg",
+        },
+      ],
+      pagination: {
+        page: 1,
+        limit: 20,
+        total: 1,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false,
+      },
+    }),
+);
+
+openApiApp.openapi(
+  {
+    method: "get",
+    path: "/api/stores/{id}",
+    tags: ["Stores"],
+    summary: "Get Store by ID",
+    description: "Get a specific store by its ID",
+    request: {
+      params: z.object({
+        id: z.string(),
+      }),
+    },
+    responses: {
+      200: {
+        description: "Store retrieved successfully",
+        content: {
+          "application/json": {
+            schema: singleStoreResponseSchema,
+          },
+        },
+      },
+      400: {
+        description: "Invalid store ID",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+      404: {
+        description: "Store not found",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+      500: {
+        description: "Internal server error",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+    },
+  },
+  (c) =>
+    c.json({
+      store: {
+        store_id: 1,
+        store_name: "Sample Store",
+        description: "A sample store description",
+        store_image_url: "https://example.com/store-image.jpg",
+        cover_image_url: "https://example.com/cover-image.jpg",
+      },
+    }),
+);
+
+openApiApp.openapi(
+  {
+    method: "put",
+    path: "/api/stores/{id}",
+    tags: ["Stores"],
+    summary: "Update Store",
+    description: "Update store information (requires authentication and store ownership)",
+    security: [{ bearerAuth: [] }],
+    request: {
+      params: z.object({
+        id: z.string(),
+      }),
+      body: {
+        content: {
+          "application/json": {
+            schema: storeUpdateSchema,
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: "Store updated successfully",
+        content: {
+          "application/json": {
+            schema: storeUpdateResponseSchema,
+          },
+        },
+      },
+      400: {
+        description: "Invalid store ID or no fields to update",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+      401: {
+        description: "Unauthorized",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+      403: {
+        description: "Forbidden - You can only update your own store",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+      404: {
+        description: "Store or user not found",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+      500: {
+        description: "Internal server error",
+        content: {
+          "application/json": {
+            schema: ErrorSchema,
+          },
+        },
+      },
+    },
+  },
+  (c) =>
+    c.json({
+      message: "Store updated successfully",
+      store: {
+        store_id: 1,
+        store_name: "Updated Store Name",
+        description: "Updated store description",
+        store_image_url: "https://example.com/updated-store-image.jpg",
+        cover_image_url: "https://example.com/updated-cover-image.jpg",
       },
     }),
 );
