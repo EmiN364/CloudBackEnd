@@ -648,7 +648,7 @@ openApiApp.openapi(
         total_amount: 59.98,
         status: "completed",
         note: "Sample sale",
-        invoice_id: null,
+        invoice_id: 1732012345678123,
         address: "123 Main St",
         products: [
           {
@@ -718,7 +718,7 @@ openApiApp.openapi(
           total_amount: 59.98,
           status: "completed",
           note: "Sample sale",
-          invoice_id: null,
+          invoice_id: 1732012345678123,
           address: "123 Main St",
           products: [
             {
@@ -804,7 +804,7 @@ openApiApp.openapi(
         total_amount: 59.98,
         status: "completed",
         note: "Sample sale",
-        invoice_id: null,
+        invoice_id: 1732012345678123,
         address: "123 Main St",
         products: [
           {

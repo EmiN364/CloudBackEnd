@@ -88,10 +88,13 @@ sales.post("/", authMiddleware, async (c) => {
         });
       }
 
-      // Create the sale with completed status
+      // Generate invoice ID (timestamp + random number for uniqueness)
+      const invoiceId = Date.now() * 1000 + Math.floor(Math.random() * 1000);
+
+      // Create the sale with completed status and generated invoice ID
       const saleResult = await client.query(
-        `INSERT INTO sales (user_id, total_amount, status, note, address)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO sales (user_id, total_amount, status, note, address, invoice_id)
+         VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING id, user_id, date, total_amount, status, note, invoice_id, address`,
         [
           userId,
@@ -99,6 +102,7 @@ sales.post("/", authMiddleware, async (c) => {
           "completed",
           validatedData.note || null,
           validatedData.address || "",
+          invoiceId,
         ],
       );
 
