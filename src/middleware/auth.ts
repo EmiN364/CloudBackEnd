@@ -17,17 +17,17 @@ declare module 'hono' {
 
 export const authMiddleware = async (c: Context, next: Next) => {
   try {
-    /* const authHeader = c.req.header('Authorization');
-    
+    const authHeader = c.req.header('Authorization');
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return c.json({ error: 'Access token required' }, 401);
     }
 
     const token = authHeader.substring(7);
     const secret = process.env.JWT_SECRET || 'fallback_secret';
-    
+
     const decoded = jwt.verify(token, secret) as any;
-    
+
     if (!decoded || !decoded.id) {
       return c.json({ error: 'Invalid token' }, 401);
     }
@@ -43,12 +43,12 @@ export const authMiddleware = async (c: Context, next: Next) => {
     }
 
     const user = result.rows[0];
-    
+
     if (!user.is_active) {
       return c.json({ error: 'User account is not active' }, 401);
     }
 
-    c.set('user', user); */
+    c.set('user', user);
     await next();
   } catch (error) {
     console.error('Auth middleware error:', error);
