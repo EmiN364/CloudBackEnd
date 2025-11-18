@@ -61,7 +61,7 @@ products.get("/", optionalAuthMiddleware, async (c) => {
     values.push(limit, offset);
 
     // Build query with optional favorite check
-    let selectClause = `SELECT p.id, p.name, p.description, p.category, p.price, p.paused, p.image_url, p.seller_id,
+    let selectClause = `SELECT p.id, p.name, p.description, p.category, p.price, p.stock, p.paused, p.image_url, p.seller_id,
               COALESCE(AVG(r.rating), 0) as rating,
               COUNT(r.id) as ratingCount,
               s.store_id, s.store_name, s.store_image_url`;
@@ -87,7 +87,7 @@ products.get("/", optionalAuthMiddleware, async (c) => {
       `${selectClause}
        ${fromClause}
        ${whereClause}
-       GROUP BY p.id, p.name, p.description, p.category, p.price, p.paused, p.image_url, p.seller_id, s.store_id, s.store_name, s.store_image_url${userId ? ", f.user_id" : ""}
+       GROUP BY p.id, p.name, p.description, p.category, p.price, p.stock, p.paused, p.image_url, p.seller_id, s.store_id, s.store_name, s.store_image_url${userId ? ", f.user_id" : ""}
        ORDER BY p.id DESC
        LIMIT $${paramCount} OFFSET $${paramCount + 1}`,
       values,
@@ -110,6 +110,7 @@ products.get("/", optionalAuthMiddleware, async (c) => {
       ...product,
       rating: parseFloat(product.rating) || 0,
       ratingCount: parseInt(product.ratingcount) || 0,
+      stock: parseInt(product.stock) || 0,
       ...(userId && { is_favorite: product.is_favorite || false }),
     }));
 
@@ -129,9 +130,8 @@ products.get("/", optionalAuthMiddleware, async (c) => {
     const validatedResponse = productsListResponseSchema.parse(responseData);
     return c.json(validatedResponse);
   } catch (error) {
-    if (error instanceof Error) {
-      return c.json({ error: error.message }, 400);
-    }
+    // eslint-disable-next-line no-console
+    console.error(error);
     return c.json({ error: "Internal server error" }, 500);
   }
 });
@@ -149,7 +149,7 @@ products.get("/:id", optionalAuthMiddleware, async (c) => {
     const userId = await getUserId(c);
 
     // Build query with optional favorite check
-    let selectClause = `SELECT p.id, p.name, p.description, p.category, p.price, p.paused, p.image_url, p.seller_id,
+    let selectClause = `SELECT p.id, p.name, p.description, p.category, p.price, p.stock, p.paused, p.image_url, p.seller_id,
               COALESCE(AVG(r.rating), 0) as rating,
               COUNT(r.id) as ratingCount,
               s.store_id, s.store_name, s.store_image_url`;
@@ -168,7 +168,7 @@ products.get("/:id", optionalAuthMiddleware, async (c) => {
       `${selectClause}
        ${fromClause}
        WHERE p.id = $1 AND p.deleted = false
-       GROUP BY p.id, p.name, p.description, p.category, p.price, p.paused, p.image_url, p.seller_id, s.store_id, s.store_name, s.store_image_url${userId ? ", f.user_id" : ""}`,
+       GROUP BY p.id, p.name, p.description, p.category, p.price, p.stock, p.paused, p.image_url, p.seller_id, s.store_id, s.store_name, s.store_image_url${userId ? ", f.user_id" : ""}`,
       [productId],
     );
 
@@ -183,6 +183,7 @@ products.get("/:id", optionalAuthMiddleware, async (c) => {
       ...productData,
       rating: parseFloat(productData.rating) || 0,
       ratingCount: parseInt(productData.ratingcount) || 0,
+      stock: parseInt(productData.stock) || 0,
       ...(userId && { is_favorite: productData.is_favorite || false }),
     };
 
@@ -239,9 +240,9 @@ products.post("/", authMiddleware, async (c) => {
     }
 
     const result = await pool.query(
-      `INSERT INTO products (name, description, category, seller_id, image_url, price)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, name, description, category, price, seller_id, image_url`,
+      `INSERT INTO products (name, description, category, seller_id, image_url, price, stock)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, name, description, category, price, stock, seller_id, image_url`,
       [
         validatedData.name,
         validatedData.description,
@@ -249,6 +250,7 @@ products.post("/", authMiddleware, async (c) => {
         userId,
         validatedData.image_url,
         validatedData.price,
+        validatedData.stock ?? 0,
       ],
     );
 

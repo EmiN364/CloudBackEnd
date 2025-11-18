@@ -151,7 +151,7 @@ stores.get("/:id/products", optionalAuthMiddleware, async (c) => {
     values.push(limit, offset);
 
     // Build query with optional favorite check
-    let selectClause = `SELECT p.id, p.name, p.description, p.category, p.price, p.paused, p.image_url, p.seller_id,
+    let selectClause = `SELECT p.id, p.name, p.description, p.category, p.price, p.stock, p.paused, p.image_url, p.seller_id,
               COALESCE(AVG(r.rating), 0) as rating,
               COUNT(r.id) as ratingCount,
               s.store_id, s.store_name, s.store_image_url`;
@@ -177,7 +177,7 @@ stores.get("/:id/products", optionalAuthMiddleware, async (c) => {
       `${selectClause}
        ${fromClause}
        ${whereClause}
-       GROUP BY p.id, p.name, p.description, p.category, p.price, p.paused, p.image_url, p.seller_id, s.store_id, s.store_name, s.store_image_url${userId ? ", f.user_id" : ""}
+       GROUP BY p.id, p.name, p.description, p.category, p.price, p.stock, p.paused, p.image_url, p.seller_id, s.store_id, s.store_name, s.store_image_url${userId ? ", f.user_id" : ""}
        ORDER BY p.id DESC
        LIMIT $${paramCount} OFFSET $${paramCount + 1}`,
       values,
@@ -200,6 +200,7 @@ stores.get("/:id/products", optionalAuthMiddleware, async (c) => {
       ...product,
       rating: parseFloat(product.rating) || 0,
       ratingCount: parseInt(product.ratingcount) || 0,
+      stock: parseInt(product.stock) || 0,
       ...(userId && { is_favorite: product.is_favorite || false }),
     }));
 
