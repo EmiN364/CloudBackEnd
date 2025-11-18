@@ -33,7 +33,7 @@ sales.post("/", authMiddleware, async (c) => {
     // Get all product details and validate them
     const productIds = validatedData.products.map((p) => p.product_id);
     const productResult = await pool.query(
-      `SELECT id, name, description, category, price, image_url, seller_id, deleted, paused
+      `SELECT id, name, description, category, price, image_url, seller_id, deleted, paused, stock
        FROM products 
        WHERE id = ANY($1)`,
       [productIds],
@@ -71,12 +71,15 @@ sales.post("/", authMiddleware, async (c) => {
       const saleProductsData = [];
 
       for (const requestProduct of validatedData.products) {
-        const product = products.find(
-          (p) => p.id === requestProduct.product_id,
-        );
+        const product = products.find((p) => p.id === requestProduct.product_id);
         const quantity = requestProduct.quantity;
         const unitPrice = product.price;
         const productTotal = unitPrice * quantity;
+
+        // Check requested quantity against current stock
+        if (typeof product.stock === 'number' && product.stock < quantity) {
+          return c.json({ error: `Insufficient stock for product id ${product.id}` }, 400);
+        }
 
         totalAmount += productTotal;
         saleProductsData.push({
@@ -90,6 +93,19 @@ sales.post("/", authMiddleware, async (c) => {
 
       // Generate invoice ID (timestamp + random number for uniqueness)
       const invoiceId = Date.now() * 1000 + Math.floor(Math.random() * 1000);
+
+      // Before creating the sale, decrement stock atomically for each product
+      for (const saleProduct of saleProductsData) {
+        const decResult = await client.query(
+          `UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $1 RETURNING id, stock`,
+          [saleProduct.quantity, saleProduct.product_id],
+        );
+
+        if (decResult.rowCount === 0) {
+          await client.query('ROLLBACK');
+          return c.json({ error: `Insufficient stock for product id ${saleProduct.product_id}` }, 400);
+        }
+      }
 
       // Create the sale with completed status and generated invoice ID
       const saleResult = await client.query(

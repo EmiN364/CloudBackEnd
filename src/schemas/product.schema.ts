@@ -6,6 +6,7 @@ export const createProductSchema = z.object({
   description: z.string().optional(),
   category: z.string().min(1),
   price: z.number().positive(),
+  stock: z.number().int().nonnegative().optional(),
   image_url: z.string().optional(),
 });
 
@@ -14,6 +15,7 @@ export const updateProductSchema = z.object({
   description: z.string().optional(),
   category: z.string().min(1).optional(),
   price: z.number().positive().optional(),
+  stock: z.number().int().nonnegative().optional(),
   image_url: z.string().optional(),
   paused: z.boolean().optional(),
 });
@@ -25,6 +27,7 @@ export const productResponseSchema = z.object({
   description: z.string().nullable(),
   category: z.string(),
   price: z.number(),
+  stock: z.number(),
   paused: z.boolean().nullable(),
   image_url: z.string().nullable(),
   seller_id: z.number(),
@@ -51,7 +54,8 @@ export const productCreationResponseSchema = z.object({
     name: z.string(),
     description: z.string().nullable(),
     category: z.string(),
-    price: z.number(),
+      price: z.number(),
+      stock: z.number(),
     seller_id: z.number(),
     image_url: z.string().nullable(),
     // Store information

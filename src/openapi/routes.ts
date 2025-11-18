@@ -249,6 +249,7 @@ openApiApp.openapi(
           description: "A sample product description",
           category: "Electronics",
           price: 29.99,
+          stock: 10,
           paused: false,
           image_url: "https://example.com/image.jpg",
           seller_id: 1,
@@ -320,6 +321,7 @@ openApiApp.openapi(
         description: "A sample product description",
         category: "Electronics",
         price: 29.99,
+        stock: 10,
         paused: false,
         image_url: "https://example.com/image.jpg",
         seller_id: 1,
@@ -394,6 +396,7 @@ openApiApp.openapi(
         description: "A sample product description",
         category: "Electronics",
         price: 29.99,
+        stock: 10,
         seller_id: 1,
         image_url: "https://example.com/image.jpg",
         store_id: 1,
@@ -840,7 +843,6 @@ openApiApp.openapi(
       },
     }),
 );
-
 // Stores routes
 openApiApp.openapi(
   {
