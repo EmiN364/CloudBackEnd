@@ -19,8 +19,8 @@ sales.post("/", authMiddleware, async (c) => {
     const user = c.get("user");
 
     // Get user from database
-    const existingUser = await pool.query<{ id: number }>(
-      "SELECT id FROM users WHERE cognito_sub = $1",
+    const existingUser = await pool.query<{ id: number; address: string | null }>(
+      "SELECT id, address FROM users WHERE cognito_sub = $1",
       [user.sub],
     );
 
@@ -29,6 +29,15 @@ sales.post("/", authMiddleware, async (c) => {
     }
 
     const userId = existingUser.rows[0].id;
+    const userAddress = existingUser.rows[0].address;
+
+    // Validate that user has an address before making a purchase
+    if (!userAddress || userAddress.trim() === "") {
+      return c.json(
+        { error: "Address is required. Please update your profile with an address before making a purchase." },
+        400,
+      );
+    }
 
     // Get all product details and validate them
     const productIds = validatedData.products.map((p) => p.product_id);
@@ -108,6 +117,9 @@ sales.post("/", authMiddleware, async (c) => {
       }
 
       // Create the sale with completed status and generated invoice ID
+      // Use address from request if provided, otherwise use user's profile address
+      const saleAddress = validatedData.address || userAddress;
+      
       const saleResult = await client.query(
         `INSERT INTO sales (user_id, total_amount, status, note, address, invoice_id)
          VALUES ($1, $2, $3, $4, $5, $6)
@@ -117,7 +129,7 @@ sales.post("/", authMiddleware, async (c) => {
           totalAmount,
           "completed",
           validatedData.note || null,
-          validatedData.address || "",
+          saleAddress,
           invoiceId,
         ],
       );
