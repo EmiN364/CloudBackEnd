@@ -1040,3 +1040,73 @@ openApiApp.openapi(
       },
     }),
 );
+
+openApiApp.openapi(
+  {
+    method: "post",
+    path: "/api/notifications/subscribe",
+    tags: ["Notifications"],
+    summary: "Subscribe an email to the SNS topic",
+    requestBody: {
+      content: {
+        "application/json": {
+          schema: {
+            type: "object",
+            properties: {
+              email: { type: "string", example: "usuario@ejemplo.com" },
+            },
+            required: ["email"],
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: "Subscription request sent",
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              properties: {
+                message: {
+                  type: "string",
+                  example: "Subscription request sent. Check your email.",
+                },
+              },
+            },
+          },
+        },
+      },
+      400: {
+        description: "Invalid email",
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              properties: {
+                error: { type: "string", example: "Valid email required" },
+              },
+            },
+          },
+        },
+      },
+      500: {
+        description: "SNS error",
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              properties: {
+                error: { type: "string", example: "Failed to subscribe email" },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  (c) =>
+    c.json({
+      message: "Subscription request sent. Check your email.",
+    }),
+);
