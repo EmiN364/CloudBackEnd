@@ -1,298 +1,195 @@
-import { Hono } from 'hono';
-import pool from '../config/database.js';
-import { authMiddleware } from '../middleware/auth.js';
-import { createReviewSchema, updateReviewSchema } from '../schemas/validation.js';
+import { Hono } from "hono";
+import { z } from "zod";
+import pool from "../config/database.js";
+import {
+  paginatedReviewsResponseSchema,
+  reviewsQuerySchema,
+  createReviewSchema,
+} from "../schemas/review.schema.js";
+import { authMiddleware } from "../middleware/auth.js";
 
 const reviews = new Hono();
 
-// Get reviews for a product (public)
-reviews.get('/product/:productId', async (c) => {
+/**
+ * GET /reviews?product_id={id}&page={page}&limit={limit}
+ * Get reviews for a specific product with pagination
+ */
+reviews.get("/", async (c) => {
   try {
-    const productId = parseInt(c.req.param('productId'));
-    const page = parseInt(c.req.query('page') || '1');
-    const limit = parseInt(c.req.query('limit') || '20');
-    
-    if (isNaN(productId)) {
-      return c.json({ error: 'Invalid product ID' }, 400);
+    // Parse and validate query parameters
+    const queryResult = reviewsQuerySchema.safeParse({
+      page: c.req.query("page"),
+      limit: c.req.query("limit"),
+      product_id: c.req.query("product_id"),
+    });
+
+    if (!queryResult.success) {
+      return c.json(
+        {
+          error: "Invalid query parameters",
+          details: queryResult.error.errors,
+        },
+        400,
+      );
     }
-    
+
+    const { page, limit, product_id } = queryResult.data;
+
+    // Validate that product_id is provided and valid
+    if (isNaN(product_id)) {
+      return c.json({ error: "Valid product_id is required" }, 400);
+    }
+
+    // Check if product exists
+    const productCheck = await pool.query(
+      "SELECT id FROM products WHERE id = $1 AND deleted = false",
+      [product_id],
+    );
+
+    if (productCheck.rows.length === 0) {
+      return c.json({ error: "Product not found" }, 404);
+    }
+
+    // Calculate offset
     const offset = (page - 1) * limit;
-    
-    const result = await pool.query(
+
+    // Get total count of reviews for the product
+    const countResult = await pool.query(
+      "SELECT COUNT(*) as total FROM reviews WHERE product_id = $1",
+      [product_id],
+    );
+    const total = parseInt(countResult.rows[0].total);
+
+    // Get reviews with pagination
+    const reviewsResult = await pool.query(
       `SELECT r.id, r.description, r.rating, r.timestamp,
-              u.first_name, u.last_name, u.id as user_id
+              u.given_name, u.family_name
        FROM reviews r
        JOIN users u ON r.user_id = u.id
        WHERE r.product_id = $1
        ORDER BY r.timestamp DESC
        LIMIT $2 OFFSET $3`,
-      [productId, limit, offset]
+      [product_id, limit, offset],
     );
-    
-    // Get total count
-    const countResult = await pool.query(
-      'SELECT COUNT(*) FROM reviews WHERE product_id = $1',
-      [productId]
-    );
-    
-    const total = parseInt(countResult.rows[0].count);
+
+    // Calculate pagination metadata
     const totalPages = Math.ceil(total / limit);
-    
-    // Get average rating
-    const avgRatingResult = await pool.query(
-      'SELECT AVG(rating) as average_rating FROM reviews WHERE product_id = $1',
-      [productId]
-    );
-    
-    const averageRating = parseFloat(avgRatingResult.rows[0].average_rating || '0');
-    
-    return c.json({
-      reviews: result.rows,
-      average_rating: averageRating,
-      total_reviews: total,
+    const hasNext = page < totalPages;
+    const hasPrev = page > 1;
+
+    const responseData = {
+      reviews: reviewsResult.rows.map((row) => ({
+        ...row,
+        timestamp: row.timestamp.toISOString(),
+      })),
       pagination: {
         page,
         limit,
         total,
         totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
-    });
+        hasNext,
+        hasPrev,
+      },
+    };
+
+    // Validate response data
+    const validatedResponse =
+      paginatedReviewsResponseSchema.parse(responseData);
+    return c.json(validatedResponse);
   } catch (error) {
-    return c.json({ error: 'Internal server error' }, 500);
+    if (error instanceof Error) {
+      return c.json({ error: error.message }, 400);
+    }
+    return c.json({ error: "Internal server error" }, 500);
   }
 });
 
-// Get user's reviews
-reviews.get('/user/me', authMiddleware, async (c) => {
+/**
+ * POST /reviews
+ * Create a new review for a product (requires authentication)
+ */
+reviews.post("/", authMiddleware, async (c) => {
   try {
-    const user = c.get('user');
-    const page = parseInt(c.req.query('page') || '1');
-    const limit = parseInt(c.req.query('limit') || '20');
-    
-    const offset = (page - 1) * limit;
-    
-    const result = await pool.query(
-      `SELECT r.id, r.description, r.rating, r.timestamp,
-              p.id as product_id, p.name as product_name
-       FROM reviews r
-       JOIN products p ON r.product_id = p.id
-       WHERE r.user_id = $1
-       ORDER BY r.timestamp DESC
-       LIMIT $2 OFFSET $3`,
-      [user.id, limit, offset]
-    );
-    
-    // Get total count
-    const countResult = await pool.query(
-      'SELECT COUNT(*) FROM reviews WHERE user_id = $1',
-      [user.id]
-    );
-    
-    const total = parseInt(countResult.rows[0].count);
-    const totalPages = Math.ceil(total / limit);
-    
-    return c.json({
-      reviews: result.rows,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
-    });
-  } catch (error) {
-    return c.json({ error: 'Internal server error' }, 500);
-  }
-});
-
-// Create review
-reviews.post('/', authMiddleware, async (c) => {
-  try {
-    const user = c.get('user');
     const body = await c.req.json();
     const validatedData = createReviewSchema.parse(body);
-    
+
+    const user = c.get("user");
+
+    // Get user from database
+    const userResult = await pool.query(
+      "SELECT id FROM users WHERE cognito_sub = $1",
+      [user.sub],
+    );
+
+    if (userResult.rows.length === 0) {
+      return c.json({ error: "User not found. Please register first." }, 404);
+    }
+
+    const userId = userResult.rows[0].id;
+
     // Check if product exists
     const productCheck = await pool.query(
-      'SELECT id FROM products WHERE id = $1 AND deleted = false',
-      [validatedData.product_id]
+      "SELECT id FROM products WHERE id = $1 AND deleted = false",
+      [validatedData.product_id],
     );
-    
+
     if (productCheck.rows.length === 0) {
-      return c.json({ error: 'Product not found' }, 404);
+      return c.json({ error: "Product not found" }, 404);
     }
-    
-    // Check if user has already reviewed this product
+
+    // Check if user already reviewed this product
     const existingReview = await pool.query(
-      'SELECT id FROM reviews WHERE user_id = $1 AND product_id = $2',
-      [user.id, validatedData.product_id]
+      "SELECT id FROM reviews WHERE user_id = $1 AND product_id = $2",
+      [userId, validatedData.product_id],
     );
-    
+
     if (existingReview.rows.length > 0) {
-      return c.json({ error: 'You have already reviewed this product' }, 409);
+      return c.json({ error: "You have already reviewed this product" }, 400);
     }
-    
-    // Check if user has purchased this product (optional validation)
-    const purchaseCheck = await pool.query(
-      `SELECT 1 FROM sales_products sp
-       JOIN sales s ON sp.sale_id = s.id
-       WHERE sp.product_id = $1 AND s.user_id = $2 AND s.status != 'cancelled'
-       LIMIT 1`,
-      [validatedData.product_id, user.id]
-    );
-    
-    if (purchaseCheck.rows.length === 0) {
-      return c.json({ error: 'You can only review products you have purchased' }, 403);
-    }
-    
+
+    // Create the review
     const result = await pool.query(
-      `INSERT INTO reviews (description, rating, product_id, user_id)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO reviews (description, rating, product_id, user_id, timestamp)
+       VALUES ($1, $2, $3, $4, NOW())
        RETURNING id, description, rating, product_id, user_id, timestamp`,
       [
-        validatedData.description,
+        validatedData.description || null,
         validatedData.rating,
         validatedData.product_id,
-        user.id
-      ]
+        userId,
+      ],
     );
-    
-    return c.json({
-      message: 'Review created successfully',
-      review: result.rows[0]
-    }, 201);
+
+    const newReview = result.rows[0];
+
+    return c.json(
+      {
+        message: "Review created successfully",
+        review: {
+          id: newReview.id,
+          description: newReview.description,
+          rating: newReview.rating,
+          product_id: newReview.product_id,
+          user_id: newReview.user_id,
+          timestamp: newReview.timestamp.toISOString(),
+        },
+      },
+      201,
+    );
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json(
+        {
+          error: "Invalid request data",
+          details: error.errors,
+        },
+        400,
+      );
+    }
     if (error instanceof Error) {
       return c.json({ error: error.message }, 400);
     }
-    return c.json({ error: 'Internal server error' }, 500);
-  }
-});
-
-// Update review
-reviews.put('/:id', authMiddleware, async (c) => {
-  try {
-    const user = c.get('user');
-    const reviewId = parseInt(c.req.param('id'));
-    
-    if (isNaN(reviewId)) {
-      return c.json({ error: 'Invalid review ID' }, 400);
-    }
-    
-    // Verify review belongs to user
-    const reviewCheck = await pool.query(
-      'SELECT id FROM reviews WHERE id = $1 AND user_id = $2',
-      [reviewId, user.id]
-    );
-    
-    if (reviewCheck.rows.length === 0) {
-      return c.json({ error: 'Review not found or access denied' }, 404);
-    }
-    
-    const body = await c.req.json();
-    const validatedData = updateReviewSchema.parse(body);
-    
-    // Build dynamic update query
-    const updateFields: string[] = [];
-    const values: any[] = [];
-    let paramCount = 1;
-    
-    Object.entries(validatedData).forEach(([key, value]) => {
-      if (value !== undefined) {
-        updateFields.push(`${key} = $${paramCount}`);
-        values.push(value);
-        paramCount++;
-      }
-    });
-    
-    if (updateFields.length === 0) {
-      return c.json({ error: 'No fields to update' }, 400);
-    }
-    
-    values.push(reviewId, user.id);
-    
-    const result = await pool.query(
-      `UPDATE reviews SET ${updateFields.join(', ')}
-       WHERE id = $${paramCount} AND user_id = $${paramCount + 1}
-       RETURNING id, description, rating, product_id, user_id, timestamp`,
-      values
-    );
-    
-    return c.json({
-      message: 'Review updated successfully',
-      review: result.rows[0]
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      return c.json({ error: error.message }, 400);
-    }
-    return c.json({ error: 'Internal server error' }, 500);
-  }
-});
-
-// Delete review
-reviews.delete('/:id', authMiddleware, async (c) => {
-  try {
-    const user = c.get('user');
-    const reviewId = parseInt(c.req.param('id'));
-    
-    if (isNaN(reviewId)) {
-      return c.json({ error: 'Invalid review ID' }, 400);
-    }
-    
-    // Verify review belongs to user
-    const reviewCheck = await pool.query(
-      'SELECT id FROM reviews WHERE id = $1 AND user_id = $2',
-      [reviewId, user.id]
-    );
-    
-    if (reviewCheck.rows.length === 0) {
-      return c.json({ error: 'Review not found or access denied' }, 404);
-    }
-    
-    await pool.query(
-      'DELETE FROM reviews WHERE id = $1',
-      [reviewId]
-    );
-    
-    return c.json({ message: 'Review deleted successfully' });
-  } catch (error) {
-    return c.json({ error: 'Internal server error' }, 500);
-  }
-});
-
-// Get review by ID (public)
-reviews.get('/:id', async (c) => {
-  try {
-    const reviewId = parseInt(c.req.param('id'));
-    
-    if (isNaN(reviewId)) {
-      return c.json({ error: 'Invalid review ID' }, 400);
-    }
-    
-    const result = await pool.query(
-      `SELECT r.id, r.description, r.rating, r.timestamp,
-              r.product_id, r.user_id,
-              u.first_name, u.last_name,
-              p.name as product_name
-       FROM reviews r
-       JOIN users u ON r.user_id = u.id
-       JOIN products p ON r.product_id = p.id
-       WHERE r.id = $1`,
-      [reviewId]
-    );
-    
-    if (result.rows.length === 0) {
-      return c.json({ error: 'Review not found' }, 404);
-    }
-    
-    return c.json({ review: result.rows[0] });
-  } catch (error) {
-    return c.json({ error: 'Internal server error' }, 500);
+    return c.json({ error: "Internal server error" }, 500);
   }
 });
 
