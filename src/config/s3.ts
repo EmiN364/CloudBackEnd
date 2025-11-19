@@ -22,7 +22,7 @@ export interface UploadedImage {
 }
 
 export const uploadImageToS3 = async (
-  file: Express.Multer.File,
+  file: any,
   folder: string = "products",
 ): Promise<UploadedImage> => {
   const key = `${folder}/${Date.now()}-${file.originalname}`;
