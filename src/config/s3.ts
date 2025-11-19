@@ -21,8 +21,15 @@ export interface UploadedImage {
   mimetype: string;
 }
 
+interface MulterFile {
+  buffer: Buffer;
+  originalname: string;
+  mimetype: string;
+  size: number;
+}
+
 export const uploadImageToS3 = async (
-  file: any,
+  file: MulterFile,
   folder: string = "products",
 ): Promise<UploadedImage> => {
   const key = `${folder}/${Date.now()}-${file.originalname}`;

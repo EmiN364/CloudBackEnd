@@ -21,6 +21,7 @@ import favorites from "./routes/favorites.js";
 import stores from "./routes/stores.js";
 import cart from "./routes/cart.js";
 import notifications from "./routes/notifications.js";
+import images from "./routes/images.js";
 
 // Load environment variables
 dotenv.config();
@@ -65,6 +66,7 @@ app.route("/api/favorites", favorites);
 app.route("/api/stores", stores);
 app.route("/api/cart", cart);
 app.route("/api/notifications", notifications);
+app.route("/api/images", images);
 
 // 404 handler
 app.notFound((c) => {
