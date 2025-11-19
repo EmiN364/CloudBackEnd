@@ -36,8 +36,6 @@ ENV DB_PASSWORD=your_password
 
 # AWS S3 Configuration
 ENV AWS_REGION=us-east-1
-ENV AWS_ACCESS_KEY_ID=your_aws_access_key_id
-ENV AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
 ENV AWS_S3_BUCKET=your_s3_bucket_name
 
 # AWS Cognito Configuration
