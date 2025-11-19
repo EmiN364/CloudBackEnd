@@ -272,9 +272,21 @@ sales.get("/", authMiddleware, async (c) => {
     const total = parseInt(countResult.rows[0].count);
     const totalPages = Math.ceil(total / limit);
 
+    // Obtener todos los product_id únicos de las ventas
+    const allProductIds = Array.from(new Set(result.rows.map((row) => row.product_id)));
+
+    // Consultar de una vez todos los reviews del usuario para esos productos
+    let reviewedProductIds: number[] = [];
+    if (allProductIds.length > 0) {
+      const reviewResult = await pool.query(
+        `SELECT product_id FROM reviews WHERE user_id = $1 AND product_id = ANY($2)`,
+        [userId, allProductIds]
+      );
+      reviewedProductIds = reviewResult.rows.map((r) => r.product_id);
+    }
+
     // Group sales by sale id
     const salesMap = new Map();
-
     result.rows.forEach((row) => {
       if (!salesMap.has(row.id)) {
         salesMap.set(row.id, {
@@ -289,7 +301,6 @@ sales.get("/", authMiddleware, async (c) => {
           products: [],
         });
       }
-
       salesMap.get(row.id).products.push({
         product_id: row.product_id,
         quantity: row.quantity,
@@ -299,6 +310,7 @@ sales.get("/", authMiddleware, async (c) => {
         product_description: row.product_description,
         product_category: row.product_category,
         product_image_url: row.product_image_url,
+        hasReviewed: reviewedProductIds.includes(row.product_id),
       });
     });
 

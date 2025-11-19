@@ -47,6 +47,7 @@ export const saleWithProductsResponseSchema = z.object({
       product_description: z.string().nullable(),
       product_category: z.string(),
       product_image_url: z.string().nullable(),
+      hasReviewed: z.boolean(),
     }),
   ),
 });
