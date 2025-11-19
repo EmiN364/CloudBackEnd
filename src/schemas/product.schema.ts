@@ -64,3 +64,8 @@ export const productCreationResponseSchema = z.object({
     store_image_url: z.string().nullable(),
   }),
 });
+
+// Related products response schema
+export const relatedProductsResponseSchema = z.object({
+  products: z.array(productResponseSchema),
+});

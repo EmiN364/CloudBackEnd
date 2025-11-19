@@ -10,6 +10,7 @@ import {
   productsListResponseSchema,
   productResponseSchema,
   productCreationResponseSchema,
+  relatedProductsResponseSchema,
 } from "../schemas/product.schema.js";
 
 const products = new Hono();
@@ -132,6 +133,145 @@ products.get("/", optionalAuthMiddleware, async (c) => {
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error(error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// Get related products
+products.get("/:productId/related", optionalAuthMiddleware, async (c) => {
+  try {
+    const productId = parseInt(c.req.param("productId"));
+    const limitParam = c.req.query("limit");
+    
+    // Validate productId
+    if (isNaN(productId)) {
+      return c.json({ error: "Invalid product ID" }, 400);
+    }
+
+    // Parse and validate limit
+    let limit = 10; // default
+    if (limitParam) {
+      const parsedLimit = parseInt(limitParam);
+      if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 20) {
+        return c.json(
+          { error: "Limit must be between 1 and 20" },
+          400,
+        );
+      }
+      limit = parsedLimit;
+    }
+
+    // Get user ID if authenticated (null if not authenticated)
+    const userId = await getUserId(c);
+
+    // First, verify that the product exists and get its category and store_id
+    const productCheck = await pool.query(
+      `SELECT p.category, p.seller_id, s.store_id
+       FROM products p
+       LEFT JOIN stores s ON p.seller_id = s.store_id
+       WHERE p.id = $1 AND p.deleted = false`,
+      [productId],
+    );
+
+    if (productCheck.rows.length === 0) {
+      return c.json({ error: "Product not found" }, 404);
+    }
+
+    const currentProduct = productCheck.rows[0];
+    const currentCategory = currentProduct.category;
+    const currentStoreId = currentProduct.store_id;
+
+    // Build query with optional favorite check
+    let selectClause = `SELECT p.id, p.name, p.description, p.category, p.price, p.paused, p.image_url, p.seller_id, p.stock,
+              COALESCE(AVG(r.rating), 0) as rating,
+              COUNT(r.id) as ratingCount,
+              s.store_id, s.store_name, s.store_image_url`;
+    let fromClause = `FROM products p
+       LEFT JOIN reviews r ON p.id = r.product_id
+       LEFT JOIN stores s ON p.seller_id = s.store_id`;
+
+    if (userId) {
+      selectClause += `,
+              CASE WHEN f.user_id IS NOT NULL THEN true ELSE false END as is_favorite`;
+      fromClause += `
+       LEFT JOIN favorites f ON p.id = f.product_id AND f.user_id = ${userId}`;
+    }
+
+    // Build ORDER BY with priority logic
+    // Note: We use the rating alias after GROUP BY, and priority is calculated in ORDER BY
+    // Handle NULL store_id case - adjust parameter numbers based on whether store_id exists
+    const orderByClause = currentStoreId
+      ? `ORDER BY 
+      CASE 
+        WHEN p.category = $1 THEN 1
+        WHEN s.store_id = $2 THEN 2
+        ELSE 3
+      END ASC,
+      rating DESC,
+      p.id DESC`
+      : `ORDER BY 
+      CASE 
+        WHEN p.category = $1 THEN 1
+        ELSE 2
+      END ASC,
+      rating DESC,
+      p.id DESC`;
+
+    // Build query parameters based on whether store_id exists
+    const queryParams = currentStoreId
+      ? [currentCategory, currentStoreId, productId, limit]
+      : [currentCategory, productId, limit];
+
+    const whereClause = currentStoreId
+      ? `WHERE p.id != $3 
+         AND p.deleted = false 
+         AND p.paused = false`
+      : `WHERE p.id != $2 
+         AND p.deleted = false 
+         AND p.paused = false`;
+
+    const limitClause = currentStoreId ? `LIMIT $4` : `LIMIT $3`;
+
+    const result = await pool.query(
+      `${selectClause}
+       ${fromClause}
+       ${whereClause}
+       GROUP BY p.id, p.name, p.description, p.category, p.price, p.paused, p.image_url, p.seller_id, p.stock, s.store_id, s.store_name, s.store_image_url${userId ? ", f.user_id" : ""}
+       ${orderByClause}
+       ${limitClause}`,
+      queryParams,
+    );
+
+    // Process products to ensure proper data types
+    const relatedProducts = result.rows.map((product) => ({
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      category: product.category,
+      price: parseFloat(product.price),
+      stock: parseInt(product.stock) || 0,
+      paused: product.paused || false,
+      image_url: product.image_url,
+      seller_id: product.seller_id,
+      rating: parseFloat(product.rating) || 0,
+      ratingCount: parseInt(product.ratingcount) || 0,
+      store_id: product.store_id,
+      store_name: product.store_name,
+      store_image_url: product.store_image_url,
+      ...(userId && { is_favorite: product.is_favorite || false }),
+    }));
+
+    const responseData = {
+      products: relatedProducts,
+    };
+
+    // Validate response data
+    const validatedResponse = relatedProductsResponseSchema.parse(responseData);
+    return c.json(validatedResponse);
+  } catch (error) {
+    if (error instanceof Error) {
+      return c.json({ error: error.message }, 400);
+    }
     return c.json({ error: "Internal server error" }, 500);
   }
 });
