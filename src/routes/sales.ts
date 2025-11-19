@@ -168,6 +168,17 @@ sales.post("/", authMiddleware, async (c) => {
 
       await client.query("COMMIT");
 
+      // Obtener los product_id de la venta
+      const productIds = completeSaleResult.rows.map((row) => row.product_id);
+      let reviewedProductIds: number[] = [];
+      if (productIds.length > 0) {
+        const reviewResult = await client.query(
+          `SELECT product_id FROM reviews WHERE user_id = $1 AND product_id = ANY($2)`,
+          [userId, productIds]
+        );
+        reviewedProductIds = reviewResult.rows.map((r) => r.product_id);
+      }
+
       // Format the response
       const firstRow = completeSaleResult.rows[0];
       const responseData = {
@@ -192,6 +203,7 @@ sales.post("/", authMiddleware, async (c) => {
             product_description: row.product_description,
             product_category: row.product_category,
             product_image_url: row.product_image_url,
+            hasReviewed: reviewedProductIds.includes(row.product_id),
           })),
         },
       };
@@ -382,6 +394,17 @@ sales.get("/:id", authMiddleware, async (c) => {
 
     const firstRow = result.rows[0];
 
+    // Obtener los product_id de la venta
+    const productIds = result.rows.map((row) => row.product_id);
+    let reviewedProductIds: number[] = [];
+    if (productIds.length > 0) {
+      const reviewResult = await pool.query(
+        `SELECT product_id FROM reviews WHERE user_id = $1 AND product_id = ANY($2)`,
+        [userId, productIds]
+      );
+      reviewedProductIds = reviewResult.rows.map((r) => r.product_id);
+    }
+
     const saleData = {
       id: firstRow.id,
       user_id: firstRow.user_id,
@@ -400,6 +423,7 @@ sales.get("/:id", authMiddleware, async (c) => {
         product_description: row.product_description,
         product_category: row.product_category,
         product_image_url: row.product_image_url,
+        hasReviewed: reviewedProductIds.includes(row.product_id),
       })),
     };
 
