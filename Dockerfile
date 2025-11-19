@@ -45,6 +45,9 @@ ENV COGNITO_USER_POOL_ID=your_cognito_user_pool_id
 ENV COGNITO_CLIENT_ID=your_cognito_client_id
 ENV COGNITO_REGION=your_cognito_region
 
+# AWS SNS Configuration
+ENV AWS_SNS_TOPIC_ARN=arn:aws:sns:us-east-1:XXXXXXXXXXXX:tu-topic
+
 USER hono
 EXPOSE 3000
 
